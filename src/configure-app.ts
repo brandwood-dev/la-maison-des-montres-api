@@ -11,5 +11,4 @@ export function configureApp(app: INestApplication, origins: string[]): void {
       transform: true,
     }),
   );
-  app.setGlobalPrefix('v1');
 }

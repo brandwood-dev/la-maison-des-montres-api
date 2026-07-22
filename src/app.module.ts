@@ -14,9 +14,10 @@ import { AppService } from './app.service';
           .valid('development', 'test', 'production')
           .default('development'),
         PORT: Joi.number().port().default(3000),
-        CORS_ORIGINS: Joi.string().default(
-          'http://localhost:3000,https://lamaisondesmontres.com',
-        ),
+        FRONTEND_URL: Joi.string()
+          .uri()
+          .default('https://lamaisondesmontres.com'),
+        LOCAL_FRONTEND_URL: Joi.string().uri().default('http://localhost:3000'),
         DATABASE_URL: Joi.string().uri().optional(),
         SUPABASE_URL: Joi.string().uri().optional(),
         SUPABASE_PUBLISHABLE_KEY: Joi.string().optional(),

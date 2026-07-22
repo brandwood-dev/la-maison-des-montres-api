@@ -18,11 +18,11 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/v1/health (GET)', () => {
+  it('/health (GET)', () => {
     return request(app.getHttpServer())
-      .get('/v1/health')
+      .get('/health')
       .expect(200)
-      .expect({ status: 'ok', service: 'la-maison-des-montres-api' });
+      .expect({ status: 'ok' });
   });
 
   afterEach(async () => {
