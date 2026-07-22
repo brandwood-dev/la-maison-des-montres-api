@@ -2,10 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/create-app';
 
-type NodeHandler = (
-  request: IncomingMessage,
-  response: ServerResponse,
-) => void;
+type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
 
 let appPromise: Promise<INestApplication> | undefined;
 

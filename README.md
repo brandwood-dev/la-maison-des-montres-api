@@ -43,6 +43,7 @@ Variables à configurer manuellement :
 
 ```bash
 bun run lint
+bun run format:check
 bun run typecheck
 bun run test:ci
 bun run build
