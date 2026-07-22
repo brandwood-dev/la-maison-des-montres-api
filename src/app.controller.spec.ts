@@ -16,10 +16,7 @@ describe('AppController', () => {
 
   describe('health', () => {
     it('returns the service health without exposing configuration', () => {
-      expect(appController.getHealth()).toEqual({
-        status: 'ok',
-        service: 'la-maison-des-montres-api',
-      });
+      expect(appController.getHealth()).toEqual({ status: 'ok' });
     });
   });
 });
