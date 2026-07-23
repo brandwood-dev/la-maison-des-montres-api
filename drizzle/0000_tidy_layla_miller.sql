@@ -130,6 +130,7 @@ ALTER TABLE "app"."attribute_values" ADD CONSTRAINT "attribute_values_attribute_
 ALTER TABLE "app"."categories" ADD CONSTRAINT "categories_parent_id_categories_id_fk" FOREIGN KEY ("parent_id") REFERENCES "app"."categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."product_attribute_values" ADD CONSTRAINT "product_attribute_values_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "app"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."product_attribute_values" ADD CONSTRAINT "product_attribute_values_attribute_id_attributes_id_fk" FOREIGN KEY ("attribute_id") REFERENCES "app"."attributes"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "attribute_values_attribute_id_id_unique" ON "app"."attribute_values" USING btree ("attribute_id","id");--> statement-breakpoint
 ALTER TABLE "app"."product_attribute_values" ADD CONSTRAINT "product_attribute_values_attribute_value_fk" FOREIGN KEY ("attribute_id","value_id") REFERENCES "app"."attribute_values"("attribute_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."product_categories" ADD CONSTRAINT "product_categories_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "app"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "app"."product_categories" ADD CONSTRAINT "product_categories_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "app"."categories"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -142,7 +143,6 @@ CREATE UNIQUE INDEX "admin_users_email_unique" ON "app"."admin_users" USING btre
 CREATE INDEX "admin_users_role_idx" ON "app"."admin_users" USING btree ("role");--> statement-breakpoint
 CREATE INDEX "admin_users_status_idx" ON "app"."admin_users" USING btree ("status");--> statement-breakpoint
 CREATE UNIQUE INDEX "attribute_values_attribute_slug_unique" ON "app"."attribute_values" USING btree ("attribute_id","slug");--> statement-breakpoint
-CREATE UNIQUE INDEX "attribute_values_attribute_id_id_unique" ON "app"."attribute_values" USING btree ("attribute_id","id");--> statement-breakpoint
 CREATE INDEX "attribute_values_attribute_order_idx" ON "app"."attribute_values" USING btree ("attribute_id","sort_order");--> statement-breakpoint
 CREATE UNIQUE INDEX "attributes_slug_unique" ON "app"."attributes" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "attributes_active_order_idx" ON "app"."attributes" USING btree ("active","sort_order");--> statement-breakpoint
