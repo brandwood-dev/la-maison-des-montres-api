@@ -1,17 +1,34 @@
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ACCESS_COOKIE } from './auth/auth.constants';
 import { AppModule } from './app.module';
+import { JsonLogger } from './common/json-logger';
+import { parseOrigins } from './config/environment';
 import { configureApp } from './configure-app';
 
 export async function createApp() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    logger: new JsonLogger(),
+  });
   const config = app.get(ConfigService);
-  const origins = [config.getOrThrow<string>('FRONTEND_URL')];
-
-  if (config.getOrThrow<string>('NODE_ENV') !== 'production') {
-    origins.push(config.getOrThrow<string>('LOCAL_FRONTEND_URL'));
-  }
+  const origins = parseOrigins(config.get<string>('CORS_ORIGINS'));
 
   configureApp(app, origins);
+  if (
+    config.getOrThrow<string>('NODE_ENV') !== 'production' &&
+    config.getOrThrow<boolean>('SWAGGER_ENABLED')
+  ) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('La Maison des Montres API')
+      .setVersion('1')
+      .addCookieAuth(ACCESS_COOKIE)
+      .build();
+    SwaggerModule.setup(
+      'docs',
+      app,
+      SwaggerModule.createDocument(app, swaggerConfig),
+    );
+  }
   return app;
 }

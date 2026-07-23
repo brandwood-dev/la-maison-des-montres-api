@@ -6,6 +6,14 @@ type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
 
 let appPromise: Promise<INestApplication> | undefined;
 
+export async function closeServerlessAppForTests(): Promise<void> {
+  if (appPromise) {
+    const app = await appPromise;
+    await app.close();
+    appPromise = undefined;
+  }
+}
+
 async function getHandler(): Promise<NodeHandler> {
   appPromise ??= createApp().then(async (app) => {
     await app.init();
@@ -26,7 +34,8 @@ export default async function handler(
   if (path !== null) {
     url.searchParams.delete('__path');
     const query = url.searchParams.toString();
-    request.url = `/${path}${query ? `?${query}` : ''}`;
+    const internalPath = path === 'health' ? '/health' : `/api/${path}`;
+    request.url = `${internalPath}${query ? `?${query}` : ''}`;
   }
 
   const nestHandler = await getHandler();
