@@ -8,6 +8,13 @@
       "when": 1784777946331,
       "tag": "0000_tidy_layla_miller",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785089463135,
+      "tag": "0001_add_product_attribute_value_index",
+      "breakpoints": true
     }
   ]
 }

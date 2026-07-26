@@ -268,6 +268,10 @@ export const productAttributeValues = appSchema.table(
       foreignColumns: [attributeValues.attributeId, attributeValues.id],
       name: 'product_attribute_values_attribute_value_fk',
     }).onDelete('restrict'),
+    index('product_attribute_values_attribute_value_idx').on(
+      table.attributeId,
+      table.valueId,
+    ),
     index('product_attribute_values_attribute_idx').on(table.attributeId),
     index('product_attribute_values_value_idx').on(table.valueId),
   ],

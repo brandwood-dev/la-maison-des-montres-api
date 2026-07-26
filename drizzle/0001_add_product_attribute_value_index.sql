@@ -1,0 +1,1 @@
+CREATE INDEX "product_attribute_values_attribute_value_idx" ON "app"."product_attribute_values" USING btree ("attribute_id","value_id");
