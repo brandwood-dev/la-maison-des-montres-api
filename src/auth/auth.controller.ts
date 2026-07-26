@@ -8,12 +8,18 @@ import {
   Res,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  ApiCookieAuth,
+  ApiNoContentResponse,
+  ApiOkResponse,
+} from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { CookieOptions, Response } from 'express';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from './auth.constants';
 import { Public } from './auth.decorators';
 import { AuthService, type AuthResult } from './auth.service';
 import type { AuthenticatedRequest } from './auth.types';
+import { AuthSessionResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 
 @Controller('api/v1/auth')
@@ -27,6 +33,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
+  @ApiOkResponse({ type: AuthSessionResponseDto })
   async login(
     @Body() input: LoginDto,
     @Res({ passthrough: true }) response: Response,
@@ -40,6 +47,8 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('refresh')
   @HttpCode(200)
+  @ApiCookieAuth(REFRESH_COOKIE)
+  @ApiOkResponse({ type: AuthSessionResponseDto })
   async refresh(
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
@@ -53,6 +62,8 @@ export class AuthController {
   @Public()
   @Post('logout')
   @HttpCode(204)
+  @ApiCookieAuth(REFRESH_COOKIE)
+  @ApiNoContentResponse()
   async logout(
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
@@ -64,6 +75,8 @@ export class AuthController {
   }
 
   @Get('me')
+  @ApiCookieAuth(ACCESS_COOKIE)
+  @ApiOkResponse({ type: AuthSessionResponseDto })
   me(@Req() request: AuthenticatedRequest) {
     return {
       user: request.admin,

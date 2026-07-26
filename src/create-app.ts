@@ -1,7 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ACCESS_COOKIE } from './auth/auth.constants';
+import { ACCESS_COOKIE, REFRESH_COOKIE } from './auth/auth.constants';
 import { AppModule } from './app.module';
 import { JsonLogger } from './common/json-logger';
 import { parseOrigins } from './config/environment';
@@ -22,7 +22,8 @@ export async function createApp() {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('La Maison des Montres API')
       .setVersion('1')
-      .addCookieAuth(ACCESS_COOKIE)
+      .addCookieAuth(ACCESS_COOKIE, undefined, ACCESS_COOKIE)
+      .addCookieAuth(REFRESH_COOKIE, undefined, REFRESH_COOKIE)
       .build();
     SwaggerModule.setup(
       'docs',
