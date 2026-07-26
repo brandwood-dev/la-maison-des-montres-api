@@ -24,10 +24,12 @@ export function configureApp(app: INestApplication, origins: string[]): void {
         new BadRequestException({
           code: 'VALIDATION_ERROR',
           message: 'Request validation failed',
-          details: errors.map((error) => ({
-            field: error.property,
-            constraints: Object.values(error.constraints ?? {}),
-          })),
+          details: Object.fromEntries(
+            errors.map((error) => [
+              error.property,
+              Object.values(error.constraints ?? {}),
+            ]),
+          ),
         }),
     }),
   );

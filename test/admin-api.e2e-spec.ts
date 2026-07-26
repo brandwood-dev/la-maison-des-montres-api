@@ -184,7 +184,9 @@ describe('Admin API V1 (integration)', () => {
         const body = response.body as Record<string, unknown>;
         expect(body.code).toBe('VALIDATION_ERROR');
         expect(body.message).toBe('Request validation failed');
-        expect(body.details).toBeDefined();
+        const details = body.details as Record<string, unknown>;
+        expect(Array.isArray(details.name)).toBe(true);
+        expect(Array.isArray(details.unexpected)).toBe(true);
         expect(body.path).toBeUndefined();
         expect(body.timestamp).toBeUndefined();
       });
