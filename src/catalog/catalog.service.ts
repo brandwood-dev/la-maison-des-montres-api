@@ -281,12 +281,11 @@ export class CatalogService {
       categoryId: input.categoryId,
       status: input.status,
     });
-    return {
-      ...page,
-      data: await Promise.all(
-        page.data.map((item) => this.productResponse(item)),
-      ),
-    };
+    const data = [];
+    for (const item of page.data) {
+      data.push(await this.productResponse(item));
+    }
+    return { ...page, data };
   }
 
   async getProduct(id: string) {
@@ -311,12 +310,11 @@ export class CatalogService {
       minPrice: input.minPrice,
       maxPrice: input.maxPrice,
     });
-    return {
-      ...page,
-      data: await Promise.all(
-        page.data.map((item) => this.publicProductResponse(item)),
-      ),
-    };
+    const data = [];
+    for (const item of page.data) {
+      data.push(await this.publicProductResponse(item));
+    }
+    return { ...page, data };
   }
 
   async getPublicProduct(slug: string) {

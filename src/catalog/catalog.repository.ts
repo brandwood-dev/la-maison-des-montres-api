@@ -382,19 +382,23 @@ export class DrizzleCatalogRepository implements CatalogRepository {
         : input.sortBy === 'name'
           ? products.name
           : products.createdAt;
-    const [rows, totalRows] = await Promise.all([
-      database
-        .select()
-        .from(products)
-        .where(where)
-        .orderBy(
-          input.sortOrder === 'desc' ? desc(orderColumn) : asc(orderColumn),
-        )
-        .limit(input.pageSize)
-        .offset((input.page - 1) * input.pageSize),
-      database.select({ value: count() }).from(products).where(where),
-    ]);
-    const data = await Promise.all(rows.map((row) => this.withRelations(row)));
+    const rows = await database
+      .select()
+      .from(products)
+      .where(where)
+      .orderBy(
+        input.sortOrder === 'desc' ? desc(orderColumn) : asc(orderColumn),
+      )
+      .limit(input.pageSize)
+      .offset((input.page - 1) * input.pageSize);
+    const totalRows = await database
+      .select({ value: count() })
+      .from(products)
+      .where(where);
+    const data: ProductDetail[] = [];
+    for (const row of rows) {
+      data.push(await this.withRelations(row));
+    }
     return this.page(data, input, totalRows[0]?.value ?? 0);
   }
 
@@ -468,24 +472,22 @@ export class DrizzleCatalogRepository implements CatalogRepository {
 
   private async withRelations(row: ProductRow): Promise<ProductDetail> {
     const database = this.getDatabase();
-    const [categoryRows, assignmentRows, imageRows] = await Promise.all([
-      database
-        .select({ categoryId: productCategories.categoryId })
-        .from(productCategories)
-        .where(eq(productCategories.productId, row.id)),
-      database
-        .select({
-          attributeId: productAttributeValues.attributeId,
-          valueId: productAttributeValues.valueId,
-        })
-        .from(productAttributeValues)
-        .where(eq(productAttributeValues.productId, row.id)),
-      database
-        .select()
-        .from(productImages)
-        .where(eq(productImages.productId, row.id))
-        .orderBy(asc(productImages.sortOrder)),
-    ]);
+    const categoryRows = await database
+      .select({ categoryId: productCategories.categoryId })
+      .from(productCategories)
+      .where(eq(productCategories.productId, row.id));
+    const assignmentRows = await database
+      .select({
+        attributeId: productAttributeValues.attributeId,
+        valueId: productAttributeValues.valueId,
+      })
+      .from(productAttributeValues)
+      .where(eq(productAttributeValues.productId, row.id));
+    const imageRows = await database
+      .select()
+      .from(productImages)
+      .where(eq(productImages.productId, row.id))
+      .orderBy(asc(productImages.sortOrder));
     const grouped = new Map<string, string[]>();
     for (const assignment of assignmentRows) {
       const values = grouped.get(assignment.attributeId) ?? [];
