@@ -3,6 +3,9 @@ import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/create-app';
 
 type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
+export type VercelRequest = IncomingMessage & {
+  query?: Record<string, string | string[] | undefined>;
+};
 
 let appPromise: Promise<INestApplication> | undefined;
 
@@ -24,20 +27,28 @@ async function getHandler(): Promise<NodeHandler> {
   return app.getHttpAdapter().getInstance() as NodeHandler;
 }
 
-export default async function handler(
-  request: IncomingMessage,
-  response: ServerResponse,
-): Promise<void> {
+export function rewriteVercelRequest(request: VercelRequest): void {
   const url = new URL(request.url ?? '/', 'http://localhost');
   const path = url.searchParams.get('__path');
 
-  if (path !== null) {
-    url.searchParams.delete('__path');
-    const query = url.searchParams.toString();
-    const internalPath = path === 'health' ? '/health' : `/api/${path}`;
-    request.url = `${internalPath}${query ? `?${query}` : ''}`;
-  }
+  if (path === null) return;
 
+  url.searchParams.delete('__path');
+  url.searchParams.delete('path');
+  if (request.query) {
+    delete request.query.__path;
+    delete request.query.path;
+  }
+  const query = url.searchParams.toString();
+  const internalPath = path === 'health' ? '/health' : `/api/${path}`;
+  request.url = `${internalPath}${query ? `?${query}` : ''}`;
+}
+
+export default async function handler(
+  request: VercelRequest,
+  response: ServerResponse,
+): Promise<void> {
+  rewriteVercelRequest(request);
   const nestHandler = await getHandler();
   nestHandler(request, response);
 }
