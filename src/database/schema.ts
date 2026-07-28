@@ -213,6 +213,16 @@ export const products = appSchema.table(
     description: text('description').notNull(),
     price: integer('price').notNull(),
     oldPrice: integer('old_price'),
+    stock: integer('stock').default(0).notNull(),
+    promotionActive: boolean('promotion_active').default(false).notNull(),
+    promotionStartsAt: timestamp('promotion_starts_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+    promotionEndsAt: timestamp('promotion_ends_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
     status: productStatus('status').default('draft').notNull(),
     seoSlug: varchar('seo_slug', { length: 240 }).notNull(),
     seoTitle: varchar('seo_title', { length: 255 }),
@@ -225,9 +235,24 @@ export const products = appSchema.table(
     index('products_brand_idx').on(table.brandId),
     index('products_status_created_idx').on(table.status, table.createdAt),
     check('products_price_nonnegative', sql`${table.price} >= 0`),
+    check('products_stock_nonnegative', sql`${table.stock} >= 0`),
     check(
       'products_old_price_nonnegative',
       sql`${table.oldPrice} is null or ${table.oldPrice} >= 0`,
+    ),
+    check(
+      'products_promotion_prices_valid',
+      sql`not ${table.promotionActive} or (
+        ${table.oldPrice} is not null
+        and ${table.oldPrice} > ${table.price}
+        and ${table.promotionEndsAt} is not null
+      )`,
+    ),
+    check(
+      'products_promotion_dates_valid',
+      sql`${table.promotionStartsAt} is null
+        or ${table.promotionEndsAt} is null
+        or ${table.promotionStartsAt} < ${table.promotionEndsAt}`,
     ),
   ],
 );

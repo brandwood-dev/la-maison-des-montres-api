@@ -86,4 +86,26 @@ describe('CatalogService', () => {
     expect(product.finalPrice).toBe(300000);
     expect(product.available).toBe(false);
   });
+
+  it('validates promotion prices and dates', async () => {
+    const brand = await service.createBrand({ name: 'Tissot' });
+    await expect(
+      service.createProduct({
+        name: 'Invalid promotion',
+        brandId: brand.id,
+        reference: 'PROMO-INVALID',
+        description: 'Test',
+        price: 450000,
+        oldPrice: 400000,
+        stock: 1,
+        promotion: {
+          active: true,
+          endsAt: '2099-12-31T23:59:59.000Z',
+        },
+        categoryIds: [],
+        images: [],
+        attributes: [],
+      }),
+    ).rejects.toThrow('requires an oldPrice greater than price');
+  });
 });

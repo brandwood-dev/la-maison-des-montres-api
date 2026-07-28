@@ -171,6 +171,9 @@ export class ProductResponseDto {
   brandId!: string;
 
   @ApiProperty()
+  brand!: string;
+
+  @ApiProperty()
   reference!: string;
 
   @ApiProperty()

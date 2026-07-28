@@ -202,7 +202,8 @@ export class FakeCatalogRepository implements CatalogRepository {
       (item) =>
         (!input.brandId || item.brandId === input.brandId) &&
         (!input.categoryId || item.categoryIds.includes(input.categoryId)) &&
-        (!input.status || item.status === input.status),
+        (!input.status || item.status === input.status) &&
+        (!input.availableOnly || item.stock > 0),
     );
     return Promise.resolve(this.list(filtered, input));
   }
@@ -210,6 +211,12 @@ export class FakeCatalogRepository implements CatalogRepository {
   findProduct(id: string): Promise<ProductDetail | null> {
     return Promise.resolve(
       this.products.find((item) => item.id === id) ?? null,
+    );
+  }
+
+  findProductBySlug(slug: string): Promise<ProductDetail | null> {
+    return Promise.resolve(
+      this.products.find((item) => item.seoSlug === slug) ?? null,
     );
   }
 
@@ -223,6 +230,10 @@ export class FakeCatalogRepository implements CatalogRepository {
       description: input.description,
       price: input.price,
       oldPrice: input.oldPrice ?? null,
+      stock: input.stock,
+      promotionActive: input.promotionActive,
+      promotionStartsAt: input.promotionStartsAt ?? null,
+      promotionEndsAt: input.promotionEndsAt ?? null,
       status: input.status ?? 'draft',
       seoSlug: input.seoSlug,
       seoTitle: input.seoTitle ?? null,

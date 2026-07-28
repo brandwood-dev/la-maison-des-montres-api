@@ -48,6 +48,7 @@ export interface ProductListInput extends PaginationInput {
   brandId?: string;
   categoryId?: string;
   status?: ProductStatus;
+  availableOnly?: boolean;
 }
 
 export interface Page<T> {
@@ -64,6 +65,10 @@ export interface ProductWrite {
   description: string;
   price: number;
   oldPrice?: number | null;
+  stock: number;
+  promotionActive: boolean;
+  promotionStartsAt?: Date | null;
+  promotionEndsAt?: Date | null;
   status?: ProductStatus;
   seoSlug: string;
   seoTitle?: string | null;
@@ -134,6 +139,7 @@ export interface CatalogRepository {
 
   listProducts(input: ProductListInput): Promise<Page<ProductDetail>>;
   findProduct(id: string): Promise<ProductDetail | null>;
+  findProductBySlug(slug: string): Promise<ProductDetail | null>;
   createProduct(input: ProductWrite): Promise<ProductDetail>;
   updateProduct(
     id: string,
@@ -360,6 +366,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       );
     }
     if (input.status) conditions.push(eq(products.status, input.status));
+    if (input.availableOnly) conditions.push(sql`${products.stock} > 0`);
     const where = conditions.length ? and(...conditions) : undefined;
     const orderColumn =
       input.sortBy === 'price'
@@ -392,6 +399,15 @@ export class DrizzleCatalogRepository implements CatalogRepository {
     return rows[0] ? this.withRelations(rows[0]) : null;
   }
 
+  async findProductBySlug(slug: string): Promise<ProductDetail | null> {
+    const rows = await this.getDatabase()
+      .select()
+      .from(products)
+      .where(eq(products.seoSlug, slug))
+      .limit(1);
+    return rows[0] ? this.withRelations(rows[0]) : null;
+  }
+
   async createProduct(input: ProductWrite): Promise<ProductDetail> {
     const database = this.getDatabase();
     const product = await database.transaction(async (tx) => {
@@ -404,6 +420,10 @@ export class DrizzleCatalogRepository implements CatalogRepository {
           description: input.description,
           price: input.price,
           oldPrice: input.oldPrice,
+          stock: input.stock,
+          promotionActive: input.promotionActive,
+          promotionStartsAt: input.promotionStartsAt,
+          promotionEndsAt: input.promotionEndsAt,
           status: input.status,
           seoSlug: input.seoSlug,
           seoTitle: input.seoTitle,
@@ -534,6 +554,10 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       description: input.description,
       price: input.price,
       oldPrice: input.oldPrice,
+      stock: input.stock,
+      promotionActive: input.promotionActive,
+      promotionStartsAt: input.promotionStartsAt,
+      promotionEndsAt: input.promotionEndsAt,
       status: input.status,
       seoSlug: input.seoSlug,
       seoTitle: input.seoTitle,

@@ -11,6 +11,7 @@ import {
   IsString,
   IsUrl,
   IsUUID,
+  IsDateString,
   Matches,
   Max,
   MaxLength,
@@ -398,6 +399,19 @@ export class ProductImageDto {
   order?: number;
 }
 
+export class ProductPromotionDto {
+  @IsBoolean()
+  active!: boolean;
+
+  @IsOptional()
+  @IsDateString({ strict: true })
+  startsAt?: string | null;
+
+  @IsOptional()
+  @IsDateString({ strict: true })
+  endsAt?: string | null;
+}
+
 export class CreateProductDto {
   @IsString()
   @MinLength(1)
@@ -424,6 +438,16 @@ export class CreateProductDto {
   @IsInt()
   @Min(0)
   oldPrice?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  stock?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ProductPromotionDto)
+  promotion?: ProductPromotionDto;
 
   @IsOptional()
   @IsEnum(productStatuses)
@@ -484,6 +508,16 @@ export class UpdateProductDto {
   @IsInt()
   @Min(0)
   oldPrice?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  stock?: number;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ProductPromotionDto)
+  promotion?: ProductPromotionDto;
 
   @IsOptional()
   @IsEnum(productStatuses)

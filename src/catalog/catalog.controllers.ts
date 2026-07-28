@@ -16,7 +16,7 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
 } from '@nestjs/swagger';
-import { RequirePermissions } from '../auth/auth.decorators';
+import { Public, RequirePermissions } from '../auth/auth.decorators';
 import { ACCESS_COOKIE } from '../auth/auth.constants';
 import { CatalogService } from './catalog.service';
 import {
@@ -284,5 +284,23 @@ export class ProductsController {
   @ApiNoContentResponse()
   delete(@Param('id', ParseUUIDPipe) id: string) {
     return this.catalog.deleteProduct(id);
+  }
+}
+
+@Controller('api/v1/public/products')
+@Public()
+export class PublicProductsController {
+  constructor(private readonly catalog: CatalogService) {}
+
+  @Get()
+  @ApiOkResponse()
+  list(@Query() query: ListQueryDto) {
+    return this.catalog.listPublicProducts(query);
+  }
+
+  @Get(':slug')
+  @ApiOkResponse()
+  get(@Param('slug') slug: string) {
+    return this.catalog.getPublicProduct(slug);
   }
 }

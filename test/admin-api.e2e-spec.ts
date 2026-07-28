@@ -159,6 +159,29 @@ describe('Admin API V1 (integration)', () => {
         const body = response.body as { status: string };
         expect(body.status).toBe('published');
       });
+    await adminAgent
+      .patch(`/api/v1/products/${productBody.id}`)
+      .send({
+        stock: 3,
+        oldPrice: 399900,
+        promotion: {
+          active: true,
+          endsAt: '2099-12-31T23:59:59.000Z',
+        },
+      })
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as {
+          brand: string;
+          stock: number;
+          available: boolean;
+          promotion: { effective: boolean };
+        };
+        expect(body.brand).toBe('Casio');
+        expect(body.stock).toBe(3);
+        expect(body.available).toBe(true);
+        expect(body.promotion.effective).toBe(true);
+      });
     await adminAgent.get('/api/v1/brands').expect(200);
     await adminAgent.get('/api/v1/categories').expect(200);
     await adminAgent.get('/api/v1/attributes').expect(200);
@@ -173,6 +196,34 @@ describe('Admin API V1 (integration)', () => {
         expect(body.total).toBe(1);
         expect(body.totalPages).toBeUndefined();
       });
+    await request(app.getHttpServer())
+      .get('/api/v1/public/products')
+      .expect(200)
+      .expect((response) => {
+        const body = response.body as {
+          total: number;
+          data: {
+            slug: string;
+            brand: string;
+            currency: string;
+            regularPriceMillimes: number;
+            promotion: { salePriceMillimes: number };
+            availability: string;
+          }[];
+        };
+        expect(body.total).toBe(1);
+        expect(body.data[0]).toMatchObject({
+          slug: 'casio-edifice',
+          brand: 'Casio',
+          currency: 'TND',
+          regularPriceMillimes: 399900,
+          promotion: { salePriceMillimes: 349900 },
+          availability: 'available',
+        });
+      });
+    await request(app.getHttpServer())
+      .get('/api/v1/public/products/casio-edifice')
+      .expect(200);
   });
 
   it('returns the contract error envelope for invalid DTOs', async () => {

@@ -15,6 +15,13 @@
       "when": 1785089463135,
       "tag": "0001_add_product_attribute_value_index",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785241640460,
+      "tag": "0002_align_product_fronts",
+      "breakpoints": true
     }
   ]
 }

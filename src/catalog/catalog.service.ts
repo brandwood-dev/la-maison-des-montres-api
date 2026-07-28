@@ -282,7 +282,9 @@ export class CatalogService {
     });
     return {
       ...page,
-      data: page.data.map((item) => this.productResponse(item)),
+      data: await Promise.all(
+        page.data.map((item) => this.productResponse(item)),
+      ),
     };
   }
 
@@ -290,8 +292,34 @@ export class CatalogService {
     return this.productResponse(await this.productRow(id));
   }
 
+  async listPublicProducts(input: ListQueryDto) {
+    const page = await this.repository.listProducts({
+      ...this.pagination(input),
+      status: 'published',
+      availableOnly: true,
+    });
+    return {
+      ...page,
+      data: await Promise.all(
+        page.data.map((item) => this.publicProductResponse(item)),
+      ),
+    };
+  }
+
+  async getPublicProduct(slug: string) {
+    const product = this.require(
+      await this.repository.findProductBySlug(slug),
+      'Product',
+    );
+    if (product.status !== 'published' || product.stock <= 0) {
+      throw new NotFoundException('Product not found');
+    }
+    return this.publicProductResponse(product);
+  }
+
   async createProduct(input: CreateProductDto) {
     const write = this.productInput(input);
+    this.validatePromotion(write);
     await this.validateProduct(write);
     return this.productResponse(await this.repository.createProduct(write));
   }
@@ -307,6 +335,16 @@ export class CatalogService {
       price: patch.price ?? current.price,
       oldPrice:
         patch.oldPrice !== undefined ? patch.oldPrice : current.oldPrice,
+      stock: patch.stock ?? current.stock,
+      promotionActive: patch.promotionActive ?? current.promotionActive,
+      promotionStartsAt:
+        patch.promotionStartsAt !== undefined
+          ? patch.promotionStartsAt
+          : current.promotionStartsAt,
+      promotionEndsAt:
+        patch.promotionEndsAt !== undefined
+          ? patch.promotionEndsAt
+          : current.promotionEndsAt,
       status: patch.status ?? current.status,
       seoSlug: patch.seoSlug ?? current.seoSlug,
       seoTitle:
@@ -327,6 +365,7 @@ export class CatalogService {
           sortOrder: image.sortOrder,
         })),
     };
+    this.validatePromotion(merged);
     await this.validateProduct(merged);
     const updated = await this.repository.updateProduct(id, patch);
     return this.productResponse(this.require(updated, 'Product'));
@@ -374,6 +413,14 @@ export class CatalogService {
       description: input.description,
       price: input.price,
       oldPrice: input.oldPrice ?? null,
+      stock: input.stock ?? 0,
+      promotionActive: input.promotion?.active ?? false,
+      promotionStartsAt: input.promotion?.startsAt
+        ? new Date(input.promotion.startsAt)
+        : null,
+      promotionEndsAt: input.promotion?.endsAt
+        ? new Date(input.promotion.endsAt)
+        : null,
       status: input.status ?? 'draft',
       seoSlug: input.seo?.slug ?? this.slugify(input.name),
       seoTitle: input.seo?.title ?? null,
@@ -387,7 +434,7 @@ export class CatalogService {
         mediaKey: image.mediaKey ?? null,
         sortOrder: image.order ?? 0,
       })),
-    };
+    } satisfies ProductWrite;
   }
 
   private productPatch(input: UpdateProductDto): Partial<ProductWrite> {
@@ -400,6 +447,18 @@ export class CatalogService {
         : {}),
       ...(input.price !== undefined ? { price: input.price } : {}),
       ...(input.oldPrice !== undefined ? { oldPrice: input.oldPrice } : {}),
+      ...(input.stock !== undefined ? { stock: input.stock } : {}),
+      ...(input.promotion
+        ? {
+            promotionActive: input.promotion.active,
+            promotionStartsAt: input.promotion.startsAt
+              ? new Date(input.promotion.startsAt)
+              : null,
+            promotionEndsAt: input.promotion.endsAt
+              ? new Date(input.promotion.endsAt)
+              : null,
+          }
+        : {}),
       ...(input.status !== undefined ? { status: input.status } : {}),
       ...(input.seo
         ? {
@@ -483,19 +542,33 @@ export class CatalogService {
     };
   }
 
-  private productResponse(product: ProductDetail) {
+  private async productResponse(product: ProductDetail) {
+    const brand = await this.brandRow(product.brandId);
+    const effective = this.isPromotionEffective(product);
     return {
       id: product.id,
       name: product.name,
       brandId: product.brandId,
+      brand: brand.name,
       reference: product.reference,
       description: product.description,
       price: product.price,
       oldPrice: product.oldPrice ?? undefined,
-      promotion: { active: false },
+      promotion: {
+        active: product.promotionActive,
+        startsAt: product.promotionStartsAt?.toISOString(),
+        endsAt: product.promotionEndsAt?.toISOString(),
+        effective,
+        discountPct:
+          effective && product.oldPrice
+            ? Math.round(
+                ((product.oldPrice - product.price) / product.oldPrice) * 100,
+              )
+            : undefined,
+      },
       finalPrice: product.price,
-      stock: 0,
-      available: false,
+      stock: product.stock,
+      available: product.status === 'published' && product.stock > 0,
       images: product.images.map((image) => ({
         id: image.id,
         url: image.url,
@@ -513,6 +586,112 @@ export class CatalogService {
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };
+  }
+
+  private async publicProductResponse(product: ProductDetail) {
+    const [adminProduct, categories] = await Promise.all([
+      this.productResponse(product),
+      Promise.all(product.categoryIds.map((id) => this.categoryRow(id))),
+    ]);
+    const category = this.publicCategory(
+      categories.filter((item) => item.active).map((item) => item.slug),
+    );
+    return {
+      id: adminProduct.id,
+      slug: adminProduct.seo.slug,
+      name: adminProduct.name,
+      brand: adminProduct.brand,
+      reference: adminProduct.reference,
+      category,
+      currency: 'TND' as const,
+      regularPriceMillimes:
+        adminProduct.promotion.effective && adminProduct.oldPrice
+          ? adminProduct.oldPrice
+          : adminProduct.price,
+      promotion:
+        adminProduct.promotion.effective &&
+        adminProduct.oldPrice &&
+        adminProduct.promotion.endsAt
+          ? {
+              regularPriceMillimes: adminProduct.oldPrice,
+              salePriceMillimes: adminProduct.price,
+              startsAt: adminProduct.promotion.startsAt ?? null,
+              endsAt: adminProduct.promotion.endsAt,
+            }
+          : null,
+      availability: adminProduct.available ? 'available' : 'unavailable',
+      images: adminProduct.images.map((image) => ({
+        id: image.id,
+        url: image.url,
+        alt: image.alt ?? adminProduct.name,
+        position: image.order + 1,
+      })),
+      shortDescription: adminProduct.description,
+      dialColor: null,
+      braceletMaterial: null,
+      braceletColor: null,
+      movementType: null,
+      displayType: null,
+      diameterMm: null,
+      glassType: null,
+      waterResistance: null,
+      warrantyMonths: null,
+      giftBoxIncluded: categories.some(
+        (item) => item.slug === 'coffrets' || item.slug === 'coffrets-cadeaux',
+      ),
+      isNew: false,
+      isBestSeller: false,
+    };
+  }
+
+  private isPromotionEffective(product: ProductDetail, now = new Date()) {
+    return Boolean(
+      product.promotionActive &&
+      product.oldPrice &&
+      product.oldPrice > product.price &&
+      product.promotionEndsAt &&
+      (!product.promotionStartsAt || product.promotionStartsAt <= now) &&
+      product.promotionEndsAt > now,
+    );
+  }
+
+  private validatePromotion(product: ProductWrite): void {
+    if (!product.promotionActive) return;
+    if (
+      !product.oldPrice ||
+      product.oldPrice <= product.price ||
+      !product.promotionEndsAt
+    ) {
+      throw new BadRequestException(
+        'An active promotion requires an oldPrice greater than price and an end date',
+      );
+    }
+    if (
+      product.promotionStartsAt &&
+      product.promotionStartsAt >= product.promotionEndsAt
+    ) {
+      throw new BadRequestException(
+        'Promotion start date must be before end date',
+      );
+    }
+  }
+
+  private publicCategory(slugs: string[]) {
+    const aliases: Record<
+      string,
+      'men' | 'women' | 'children' | 'couple' | 'connected'
+    > = {
+      homme: 'men',
+      hommes: 'men',
+      femme: 'women',
+      femmes: 'women',
+      enfant: 'children',
+      enfants: 'children',
+      couple: 'couple',
+      connectees: 'connected',
+      'montres-connectees': 'connected',
+    };
+    return slugs.map((slug) => aliases[slug]).find(Boolean) ?? 'men';
   }
 
   private pagination(input: ListQueryDto): PaginationInput {

@@ -89,7 +89,9 @@ La migration initiale crée :
   `product_attribute_values`
 
 Les prix sont des entiers en millimes. `products.brand_id` est obligatoire.
-Les références produit et les slugs SEO sont uniques.
+Les références produit et les slugs SEO sont uniques. La migration additive
+`0002_align_product_fronts` ajoute le stock non négatif et la fenêtre de
+promotion nécessaires aux contrats Admin et boutique.
 
 Le seed de développement est explicite et désactivé par défaut :
 
@@ -138,6 +140,12 @@ requièrent `products.read`, les écritures `products.write`.
 - `/api/v1/products`
 - `PATCH /api/v1/products/:id/status`
 
+Les lectures publiques ne nécessitent aucune session et ne retournent que les
+produits publiés avec un stock positif :
+
+- `GET /api/v1/public/products`
+- `GET /api/v1/public/products/:slug`
+
 Les collections acceptent pagination, recherche, filtres et tri. Les DTO sont
 stricts et rejettent les propriétés inconnues. Le backend valide notamment :
 
@@ -147,7 +155,10 @@ stricts et rejettent les propriétés inconnues. Le backend valide notamment :
 - plusieurs valeurs possibles uniquement pour `multiselect` ;
 - un `swatch` hexadécimal pour les valeurs de couleur ;
 - les cycles de catégories ;
-- les prix entiers positifs ou nuls.
+- les prix entiers positifs ou nuls ;
+- un stock entier positif ou nul ;
+- une promotion active avec prix barré supérieur au prix courant et date de
+  fin obligatoire.
 
 ## Validation
 
@@ -158,6 +169,10 @@ bun run typecheck
 bun run test:ci
 bun run build
 ```
+
+Avec l’API locale démarrée et Supabase Development configuré, le smoke test
+réel est disponible via `bun run test:dev-db`. Il crée puis supprime uniquement
+ses propres données temporaires.
 
 Les tests unitaires couvrent l’authentification, la rotation des sessions, la
 matrice de permissions et les règles du catalogue. Les tests d’intégration
@@ -176,17 +191,14 @@ Aucun déploiement, domaine ou ressource Vercel n’est créé par cette version
 ## Limites connues de cette étape
 
 - aucune commande, client, checkout ou paiement ;
-- aucun stock ou mouvement de stock ;
-- aucune promotion ;
-- aucun endpoint catalogue public ;
+- aucun ledger de mouvements de stock ;
+- aucune promotion catalogue distincte des promotions produit ;
 - aucun upload média réel ; `MediaProvider` est seulement une abstraction ;
 - aucune intégration Supabase Auth, Storage, Brevo, WhatsApp ou Cloudflare ;
-- les réponses produit exposent temporairement `stock: 0`,
-  `available: false`, `promotion.active: false` et `finalPrice: price` ;
 - aucune migration n’est appliquée automatiquement ;
 - aucun frontend n’est connecté.
 
-Avant de connecter l’admin, il faut appliquer la migration dans un
-environnement Supabase de développement, créer un super-admin par le seed
-explicite, configurer les origines/cookies, puis valider le contrat OpenAPI
-généré avec le frontend admin.
+Avant la Preview, il reste à remplacer les services catalogue mockés de
+l’Admin et les fixtures produits de la boutique par ces endpoints, puis à
+configurer les origines/cookies Preview. La Production exige une base Supabase
+séparée et ses propres secrets.
