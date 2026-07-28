@@ -114,6 +114,28 @@ export class ProductListQueryDto extends ListQueryDto {
   status?: ProductStatus;
 }
 
+export class PublicProductListQueryDto extends ListQueryDto {
+  @IsOptional()
+  @IsUUID()
+  brandId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxPrice?: number;
+}
+
 export class CreateBrandDto {
   @IsString()
   @MinLength(1)

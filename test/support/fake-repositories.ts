@@ -203,7 +203,9 @@ export class FakeCatalogRepository implements CatalogRepository {
         (!input.brandId || item.brandId === input.brandId) &&
         (!input.categoryId || item.categoryIds.includes(input.categoryId)) &&
         (!input.status || item.status === input.status) &&
-        (!input.availableOnly || item.stock > 0),
+        (!input.availableOnly || item.stock > 0) &&
+        (input.minPrice === undefined || item.price >= input.minPrice) &&
+        (input.maxPrice === undefined || item.price <= input.maxPrice),
     );
     return Promise.resolve(this.list(filtered, input));
   }

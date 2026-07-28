@@ -25,6 +25,7 @@ import type {
   CreateProductDto,
   ListQueryDto,
   ProductListQueryDto,
+  PublicProductListQueryDto,
   ReorderCategoriesDto,
   UpdateAttributeDto,
   UpdateAttributeValueDto,
@@ -292,11 +293,23 @@ export class CatalogService {
     return this.productResponse(await this.productRow(id));
   }
 
-  async listPublicProducts(input: ListQueryDto) {
+  async listPublicBrands(input: ListQueryDto) {
+    return this.listBrands({ ...input, active: true });
+  }
+
+  async listPublicCategories(input: ListQueryDto) {
+    return this.listCategories({ ...input, active: true });
+  }
+
+  async listPublicProducts(input: PublicProductListQueryDto) {
     const page = await this.repository.listProducts({
       ...this.pagination(input),
       status: 'published',
       availableOnly: true,
+      brandId: input.brandId,
+      categoryId: input.categoryId,
+      minPrice: input.minPrice,
+      maxPrice: input.maxPrice,
     });
     return {
       ...page,

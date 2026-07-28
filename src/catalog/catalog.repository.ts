@@ -10,6 +10,8 @@ import {
   desc,
   eq,
   ilike,
+  gte,
+  lte,
   or,
   sql,
   type SQL,
@@ -49,6 +51,8 @@ export interface ProductListInput extends PaginationInput {
   categoryId?: string;
   status?: ProductStatus;
   availableOnly?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
 }
 
 export interface Page<T> {
@@ -367,6 +371,10 @@ export class DrizzleCatalogRepository implements CatalogRepository {
     }
     if (input.status) conditions.push(eq(products.status, input.status));
     if (input.availableOnly) conditions.push(sql`${products.stock} > 0`);
+    if (input.minPrice !== undefined)
+      conditions.push(gte(products.price, input.minPrice));
+    if (input.maxPrice !== undefined)
+      conditions.push(lte(products.price, input.maxPrice));
     const where = conditions.length ? and(...conditions) : undefined;
     const orderColumn =
       input.sortBy === 'price'

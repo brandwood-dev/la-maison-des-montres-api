@@ -222,6 +222,26 @@ describe('Admin API V1 (integration)', () => {
         });
       });
     await request(app.getHttpServer())
+      .get(
+        `/api/v1/public/products?categoryId=${categoryBody.id}&maxPrice=349899`,
+      )
+      .expect(200)
+      .expect((response) => {
+        expect((response.body as { total: number }).total).toBe(0);
+      });
+    await request(app.getHttpServer())
+      .get('/api/v1/public/brands?pageSize=100')
+      .expect(200)
+      .expect((response) => {
+        expect((response.body as { data: unknown[] }).data).toHaveLength(1);
+      });
+    await request(app.getHttpServer())
+      .get('/api/v1/public/categories?pageSize=100')
+      .expect(200)
+      .expect((response) => {
+        expect((response.body as { data: unknown[] }).data).toHaveLength(1);
+      });
+    await request(app.getHttpServer())
       .get('/api/v1/public/products/casio-edifice')
       .expect(200);
   });

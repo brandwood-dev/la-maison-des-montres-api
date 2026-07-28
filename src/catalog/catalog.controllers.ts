@@ -27,6 +27,7 @@ import {
   CreateProductDto,
   ListQueryDto,
   ProductListQueryDto,
+  PublicProductListQueryDto,
   ReorderCategoriesDto,
   UpdateAttributeDto,
   UpdateAttributeValueDto,
@@ -294,7 +295,7 @@ export class PublicProductsController {
 
   @Get()
   @ApiOkResponse()
-  list(@Query() query: ListQueryDto) {
+  list(@Query() query: PublicProductListQueryDto) {
     return this.catalog.listPublicProducts(query);
   }
 
@@ -302,5 +303,29 @@ export class PublicProductsController {
   @ApiOkResponse()
   get(@Param('slug') slug: string) {
     return this.catalog.getPublicProduct(slug);
+  }
+}
+
+@Controller('api/v1/public/brands')
+@Public()
+export class PublicBrandsController {
+  constructor(private readonly catalog: CatalogService) {}
+
+  @Get()
+  @ApiOkResponse({ type: BrandPageResponseDto })
+  list(@Query() query: ListQueryDto) {
+    return this.catalog.listPublicBrands(query);
+  }
+}
+
+@Controller('api/v1/public/categories')
+@Public()
+export class PublicCategoriesController {
+  constructor(private readonly catalog: CatalogService) {}
+
+  @Get()
+  @ApiOkResponse({ type: CategoryPageResponseDto })
+  list(@Query() query: ListQueryDto) {
+    return this.catalog.listPublicCategories(query);
   }
 }
