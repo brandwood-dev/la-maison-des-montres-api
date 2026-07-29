@@ -13,8 +13,8 @@ import * as schema from './schema';
 
 const SERVERLESS_DATABASE_OPTIONS = {
   max: 1,
-  idle_timeout: 1,
-  max_lifetime: 60,
+  idle_timeout: 20,
+  max_lifetime: 300,
   connect_timeout: 5,
   connection: {
     statement_timeout: 15_000,

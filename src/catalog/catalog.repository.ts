@@ -11,6 +11,7 @@ import {
   eq,
   ilike,
   gte,
+  inArray,
   lte,
   or,
   sql,
@@ -395,10 +396,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       .select({ value: count() })
       .from(products)
       .where(where);
-    const data: ProductDetail[] = [];
-    for (const row of rows) {
-      data.push(await this.withRelations(row));
-    }
+    const data = await this.withRelations(rows);
     return this.page(data, input, totalRows[0]?.value ?? 0);
   }
 
@@ -408,7 +406,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       .from(products)
       .where(eq(products.id, id))
       .limit(1);
-    return rows[0] ? this.withRelations(rows[0]) : null;
+    return rows[0] ? (await this.withRelations(rows))[0] : null;
   }
 
   async findProductBySlug(slug: string): Promise<ProductDetail | null> {
@@ -417,7 +415,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       .from(products)
       .where(eq(products.seoSlug, slug))
       .limit(1);
-    return rows[0] ? this.withRelations(rows[0]) : null;
+    return rows[0] ? (await this.withRelations(rows))[0] : null;
   }
 
   async createProduct(input: ProductWrite): Promise<ProductDetail> {
@@ -445,7 +443,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       await this.replaceProductRelations(tx, row.id, input);
       return row;
     });
-    return this.withRelations(product);
+    return (await this.withRelations([product]))[0];
   }
 
   async updateProduct(
@@ -463,46 +461,72 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       await this.replaceProductRelations(tx, id, input);
       return row;
     });
-    return product ? this.withRelations(product) : null;
+    return product ? (await this.withRelations([product]))[0] : null;
   }
 
   deleteProduct(id: string): Promise<boolean> {
     return this.deleteOne(products, products.id, id);
   }
 
-  private async withRelations(row: ProductRow): Promise<ProductDetail> {
+  private async withRelations(rows: ProductRow[]): Promise<ProductDetail[]> {
+    if (rows.length === 0) return [];
+
     const database = this.getDatabase();
+    const productIds = rows.map((row) => row.id);
     const categoryRows = await database
-      .select({ categoryId: productCategories.categoryId })
+      .select({
+        productId: productCategories.productId,
+        categoryId: productCategories.categoryId,
+      })
       .from(productCategories)
-      .where(eq(productCategories.productId, row.id));
+      .where(inArray(productCategories.productId, productIds));
     const assignmentRows = await database
       .select({
+        productId: productAttributeValues.productId,
         attributeId: productAttributeValues.attributeId,
         valueId: productAttributeValues.valueId,
       })
       .from(productAttributeValues)
-      .where(eq(productAttributeValues.productId, row.id));
+      .where(inArray(productAttributeValues.productId, productIds));
     const imageRows = await database
       .select()
       .from(productImages)
-      .where(eq(productImages.productId, row.id))
+      .where(inArray(productImages.productId, productIds))
       .orderBy(asc(productImages.sortOrder));
-    const grouped = new Map<string, string[]>();
+
+    const categoriesByProduct = new Map<string, string[]>();
+    for (const category of categoryRows) {
+      const categoryIds = categoriesByProduct.get(category.productId) ?? [];
+      categoryIds.push(category.categoryId);
+      categoriesByProduct.set(category.productId, categoryIds);
+    }
+
+    const assignmentsByProduct = new Map<string, Map<string, string[]>>();
     for (const assignment of assignmentRows) {
+      const grouped =
+        assignmentsByProduct.get(assignment.productId) ??
+        new Map<string, string[]>();
       const values = grouped.get(assignment.attributeId) ?? [];
       values.push(assignment.valueId);
       grouped.set(assignment.attributeId, values);
+      assignmentsByProduct.set(assignment.productId, grouped);
     }
-    return {
+
+    const imagesByProduct = new Map<string, ProductImageRow[]>();
+    for (const image of imageRows) {
+      const images = imagesByProduct.get(image.productId) ?? [];
+      images.push(image);
+      imagesByProduct.set(image.productId, images);
+    }
+
+    return rows.map((row) => ({
       ...row,
-      categoryIds: categoryRows.map((item) => item.categoryId),
-      attributes: [...grouped].map(([attributeId, valueIds]) => ({
-        attributeId,
-        valueIds,
-      })),
-      images: imageRows,
-    };
+      categoryIds: categoriesByProduct.get(row.id) ?? [],
+      attributes: [
+        ...(assignmentsByProduct.get(row.id) ?? new Map<string, string[]>()),
+      ].map(([attributeId, valueIds]) => ({ attributeId, valueIds })),
+      images: imagesByProduct.get(row.id) ?? [],
+    }));
   }
 
   private async replaceProductRelations(
