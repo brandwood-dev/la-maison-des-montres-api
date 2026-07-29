@@ -11,6 +11,17 @@ import postgres, { type Sql } from 'postgres';
 import { DATABASE, DATABASE_CLIENT } from './database.constants';
 import * as schema from './schema';
 
+const SERVERLESS_DATABASE_OPTIONS = {
+  max: 1,
+  idle_timeout: 1,
+  max_lifetime: 60,
+  connect_timeout: 5,
+  connection: {
+    statement_timeout: 15_000,
+    lock_timeout: 5_000,
+  },
+} as const;
+
 @Injectable()
 class DatabaseLifecycle implements OnApplicationShutdown {
   constructor(@Inject(DATABASE_CLIENT) private readonly client: Sql | null) {}
@@ -31,11 +42,18 @@ class DatabaseLifecycle implements OnApplicationShutdown {
         if (!url) {
           return null;
         }
+        const isProduction =
+          config.getOrThrow<string>('NODE_ENV') === 'production';
+
         return postgres(url, {
           prepare: false,
-          max: config.getOrThrow<string>('NODE_ENV') === 'production' ? 1 : 5,
-          idle_timeout: 20,
-          connect_timeout: 10,
+          ...(isProduction
+            ? SERVERLESS_DATABASE_OPTIONS
+            : {
+                max: 5,
+                idle_timeout: 20,
+                connect_timeout: 10,
+              }),
         });
       },
     },
