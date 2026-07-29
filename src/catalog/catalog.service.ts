@@ -173,12 +173,11 @@ export class CatalogService {
 
   async listAttributes(input: ListQueryDto) {
     const page = await this.repository.listAttributes(this.pagination(input));
-    return {
-      ...page,
-      data: await Promise.all(
-        page.data.map((row) => this.attributeResponse(row)),
-      ),
-    };
+    const data = [];
+    for (const row of page.data) {
+      data.push(await this.attributeResponse(row));
+    }
+    return { ...page, data };
   }
 
   async getAttribute(id: string) {
@@ -600,10 +599,11 @@ export class CatalogService {
   }
 
   private async publicProductResponse(product: ProductDetail) {
-    const [adminProduct, categories] = await Promise.all([
-      this.productResponse(product),
-      Promise.all(product.categoryIds.map((id) => this.categoryRow(id))),
-    ]);
+    const adminProduct = await this.productResponse(product);
+    const categories = [];
+    for (const id of product.categoryIds) {
+      categories.push(await this.categoryRow(id));
+    }
     const category = this.publicCategory(
       categories.filter((item) => item.active).map((item) => item.slug),
     );

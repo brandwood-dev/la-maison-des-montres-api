@@ -583,16 +583,17 @@ export class DrizzleCatalogRepository implements CatalogRepository {
   ): Promise<Page<T>> {
     const database = this.getDatabase();
     const where = conditions.length ? and(...conditions) : undefined;
-    const [rawRows, rawTotalRows] = await Promise.all([
-      database
-        .select()
-        .from(table)
-        .where(where)
-        .orderBy(order)
-        .limit(input.pageSize)
-        .offset((input.page - 1) * input.pageSize),
-      database.select({ value: count() }).from(table).where(where),
-    ]);
+    const rawRows = await database
+      .select()
+      .from(table)
+      .where(where)
+      .orderBy(order)
+      .limit(input.pageSize)
+      .offset((input.page - 1) * input.pageSize);
+    const rawTotalRows = await database
+      .select({ value: count() })
+      .from(table)
+      .where(where);
     const rows = rawRows as unknown as T[];
     const totalRows = rawTotalRows as unknown as { value: number }[];
     return this.page(rows, input, totalRows[0]?.value ?? 0);

@@ -61,10 +61,8 @@ export class AuthService {
 
   async refresh(refreshToken: string): Promise<AuthResult> {
     const payload = await this.verifyRefreshToken(refreshToken);
-    const [session, user] = await Promise.all([
-      this.repository.findSession(payload.sid),
-      this.repository.findUserById(payload.sub),
-    ]);
+    const session = await this.repository.findSession(payload.sid);
+    const user = await this.repository.findUserById(payload.sub);
     const currentHash = this.tokenHash(refreshToken);
     if (
       !session ||
