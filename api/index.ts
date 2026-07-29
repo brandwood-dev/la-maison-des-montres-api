@@ -50,29 +50,5 @@ export default async function handler(
 ): Promise<void> {
   rewriteVercelRequest(request);
   const nestHandler = await getHandler();
-  await new Promise<void>((resolve, reject) => {
-    const cleanup = () => {
-      response.off('finish', finish);
-      response.off('close', finish);
-      response.off('error', fail);
-    };
-    const finish = () => {
-      cleanup();
-      resolve();
-    };
-    const fail = (error: Error) => {
-      cleanup();
-      reject(error);
-    };
-
-    response.once('finish', finish);
-    response.once('close', finish);
-    response.once('error', fail);
-
-    try {
-      nestHandler(request, response);
-    } catch (error) {
-      fail(error instanceof Error ? error : new Error(String(error)));
-    }
-  });
+  nestHandler(request, response);
 }
