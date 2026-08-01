@@ -4,21 +4,32 @@ import { createApp } from '../src/create-app';
 
 type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
 type ResponseDispatcher = () => void;
+export type ResponseCompletion = 'finished' | 'closed';
 export type VercelRequest = IncomingMessage & {
   query?: Record<string, string | string[] | undefined>;
 };
 
 let appPromise: Promise<INestApplication> | undefined;
+let abortedAppCleanup: Promise<void> | undefined;
 
 export async function closeServerlessAppForTests(): Promise<void> {
-  if (appPromise) {
-    const app = await appPromise;
-    await app.close();
-    appPromise = undefined;
-  }
+  const currentApp = appPromise;
+  appPromise = undefined;
+  if (!currentApp) return;
+
+  const app = await currentApp;
+  await app.close();
+}
+
+async function resetServerlessAppAfterAbort(): Promise<void> {
+  abortedAppCleanup ??= closeServerlessAppForTests().finally(() => {
+    abortedAppCleanup = undefined;
+  });
+  await abortedAppCleanup;
 }
 
 async function getHandler(): Promise<NodeHandler> {
+  if (abortedAppCleanup) await abortedAppCleanup;
   appPromise ??= createApp().then(async (app) => {
     await app.init();
     return app;
@@ -31,24 +42,26 @@ async function getHandler(): Promise<NodeHandler> {
 export function waitForResponseCompletion(
   response: ServerResponse,
   dispatch: ResponseDispatcher,
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
+): Promise<ResponseCompletion> {
+  return new Promise<ResponseCompletion>((resolve, reject) => {
     const cleanup = () => {
-      response.off('finish', complete);
-      response.off('close', complete);
+      response.off('finish', finish);
+      response.off('close', close);
       response.off('error', fail);
     };
-    const complete = () => {
+    const complete = (completion: ResponseCompletion) => {
       cleanup();
-      resolve();
+      resolve(completion);
     };
+    const finish = () => complete('finished');
+    const close = () => complete('closed');
     const fail = (error: Error) => {
       cleanup();
       reject(error);
     };
 
-    response.once('finish', complete);
-    response.once('close', complete);
+    response.once('finish', finish);
+    response.once('close', close);
     response.once('error', fail);
 
     try {
@@ -82,7 +95,10 @@ export default async function handler(
 ): Promise<void> {
   rewriteVercelRequest(request);
   const nestHandler = await getHandler();
-  await waitForResponseCompletion(response, () =>
+  const completion = await waitForResponseCompletion(response, () =>
     nestHandler(request, response),
   );
+  if (completion === 'closed') {
+    await resetServerlessAppAfterAbort();
+  }
 }

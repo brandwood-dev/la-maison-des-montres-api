@@ -48,10 +48,19 @@ describe('Vercel serverless entrypoint (e2e)', () => {
     const response = new EventEmitter() as unknown as ServerResponse;
     const dispatch = jest.fn(() => response.emit('close'));
 
-    await expect(
-      waitForResponseCompletion(response, dispatch),
-    ).resolves.toBeUndefined();
+    await expect(waitForResponseCompletion(response, dispatch)).resolves.toBe(
+      'closed',
+    );
     expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('distinguishes a completed response from an aborted one', async () => {
+    const response = new EventEmitter() as unknown as ServerResponse;
+    const dispatch = jest.fn(() => response.emit('finish'));
+
+    await expect(waitForResponseCompletion(response, dispatch)).resolves.toBe(
+      'finished',
+    );
   });
 
   afterAll(async () => {
