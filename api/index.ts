@@ -44,18 +44,26 @@ export function waitForResponseCompletion(
   dispatch: ResponseDispatcher,
 ): Promise<ResponseCompletion> {
   return new Promise<ResponseCompletion>((resolve, reject) => {
+    const originalEnd = response.end.bind(response);
+    let settled = false;
+    let endCalled = false;
     const cleanup = () => {
       response.off('finish', finish);
       response.off('close', close);
       response.off('error', fail);
+      response.end = originalEnd;
     };
     const complete = (completion: ResponseCompletion) => {
+      if (settled) return;
+      settled = true;
       cleanup();
       resolve(completion);
     };
     const finish = () => complete('finished');
-    const close = () => complete('closed');
+    const close = () => complete(endCalled ? 'finished' : 'closed');
     const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
       cleanup();
       reject(error);
     };
@@ -63,6 +71,16 @@ export function waitForResponseCompletion(
     response.once('finish', finish);
     response.once('close', close);
     response.once('error', fail);
+    response.end = ((...args: unknown[]) => {
+      endCalled = true;
+      const result = Reflect.apply(
+        originalEnd,
+        response,
+        args,
+      ) as ServerResponse;
+      complete('finished');
+      return result;
+    }) as typeof response.end;
 
     try {
       dispatch();

@@ -46,6 +46,7 @@ describe('Vercel serverless entrypoint (e2e)', () => {
 
   it('releases the invocation when the client closes early', async () => {
     const response = new EventEmitter() as unknown as ServerResponse;
+    response.end = jest.fn(() => response);
     const dispatch = jest.fn(() => response.emit('close'));
 
     await expect(waitForResponseCompletion(response, dispatch)).resolves.toBe(
@@ -56,7 +57,18 @@ describe('Vercel serverless entrypoint (e2e)', () => {
 
   it('distinguishes a completed response from an aborted one', async () => {
     const response = new EventEmitter() as unknown as ServerResponse;
+    response.end = jest.fn(() => response);
     const dispatch = jest.fn(() => response.emit('finish'));
+
+    await expect(waitForResponseCompletion(response, dispatch)).resolves.toBe(
+      'finished',
+    );
+  });
+
+  it('releases the invocation when the adapter ends without emitting events', async () => {
+    const response = new EventEmitter() as unknown as ServerResponse;
+    response.end = jest.fn(() => response);
+    const dispatch = jest.fn(() => response.end());
 
     await expect(waitForResponseCompletion(response, dispatch)).resolves.toBe(
       'finished',
