@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import { createApp } from '../src/create-app';
 
 type NodeHandler = (request: IncomingMessage, response: ServerResponse) => void;
+type ResponseDispatcher = () => void;
 export type VercelRequest = IncomingMessage & {
   query?: Record<string, string | string[] | undefined>;
 };
@@ -25,6 +26,37 @@ async function getHandler(): Promise<NodeHandler> {
 
   const app = await appPromise;
   return app.getHttpAdapter().getInstance() as NodeHandler;
+}
+
+export function waitForResponseCompletion(
+  response: ServerResponse,
+  dispatch: ResponseDispatcher,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      response.off('finish', complete);
+      response.off('close', complete);
+      response.off('error', fail);
+    };
+    const complete = () => {
+      cleanup();
+      resolve();
+    };
+    const fail = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+
+    response.once('finish', complete);
+    response.once('close', complete);
+    response.once('error', fail);
+
+    try {
+      dispatch();
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error(String(error)));
+    }
+  });
 }
 
 export function rewriteVercelRequest(request: VercelRequest): void {
@@ -50,24 +82,7 @@ export default async function handler(
 ): Promise<void> {
   rewriteVercelRequest(request);
   const nestHandler = await getHandler();
-  await new Promise<void>((resolve, reject) => {
-    const originalEnd = response.end.bind(response);
-    response.end = ((...args: unknown[]) => {
-      response.end = originalEnd;
-      const result = Reflect.apply(
-        originalEnd,
-        response,
-        args,
-      ) as ServerResponse;
-      resolve();
-      return result;
-    }) as typeof response.end;
-
-    try {
-      nestHandler(request, response);
-    } catch (error) {
-      response.end = originalEnd;
-      reject(error instanceof Error ? error : new Error(String(error)));
-    }
-  });
+  await waitForResponseCompletion(response, () =>
+    nestHandler(request, response),
+  );
 }
