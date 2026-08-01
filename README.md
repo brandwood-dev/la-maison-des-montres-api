@@ -44,6 +44,11 @@ cp .env.example .env
 - `DATABASE_URL` : connexion d’exécution côté serveur ; utiliser le pool
   transactionnel Supavisor pour un runtime serverless
 - `DATABASE_DIRECT_URL` : connexion directe réservée aux migrations
+- `SUPABASE_URL` : URL du projet Supabase utilisée uniquement côté serveur pour
+  les tickets d’upload Storage
+- `SUPABASE_SERVICE_ROLE_KEY` : clé secrète serveur Supabase, jamais exposée au
+  navigateur
+- `SUPABASE_STORAGE_BUCKET` : bucket public des images produit
 - `CORS_ORIGINS` : liste d’origines exactes séparées par des virgules ; CORS
   reste désactivé si la liste est vide
 - `JWT_ACCESS_SECRET`
@@ -92,6 +97,12 @@ Les prix sont des entiers en millimes. `products.brand_id` est obligatoire.
 Les références produit et les slugs SEO sont uniques. La migration additive
 `0002_align_product_fronts` ajoute le stock non négatif et la fenêtre de
 promotion nécessaires aux contrats Admin et boutique.
+
+Le bucket `product-media` est créé par la migration additive
+`0003_product_media_storage`. L’endpoint protégé
+`POST /api/v1/media/product-upload-url` délivre un ticket PUT signé pour une
+image produit (JPEG, PNG, WebP ou AVIF, 5 Mo maximum). L’URL publique retournée
+est ensuite enregistrée dans `product_images` lors de la sauvegarde du produit.
 
 Le seed de développement est explicite et désactivé par défaut :
 

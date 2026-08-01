@@ -11,6 +11,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { HttpLoggingInterceptor } from './common/http-logging.interceptor';
 import { environmentSchema } from './config/environment';
 import { DatabaseModule } from './database/database.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { DatabaseModule } from './database/database.module';
     DatabaseModule,
     AuthModule,
     CatalogModule,
+    MediaModule,
   ],
   controllers: [AppController],
   providers: [

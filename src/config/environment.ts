@@ -11,6 +11,11 @@ export const environmentSchema = Joi.object({
     otherwise: Joi.string().uri().required(),
   }),
   DATABASE_DIRECT_URL: Joi.string().uri().optional(),
+  SUPABASE_URL: Joi.string().uri().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: Joi.string().min(20).optional(),
+  SUPABASE_STORAGE_BUCKET: Joi.string()
+    .pattern(/^[a-z0-9][a-z0-9._-]{1,62}$/)
+    .default('product-media'),
   CORS_ORIGINS: Joi.string().allow('').default(''),
   JWT_ACCESS_SECRET: Joi.when('NODE_ENV', {
     is: 'test',
