@@ -111,12 +111,21 @@ export default async function handler(
   request: VercelRequest,
   response: ServerResponse,
 ): Promise<void> {
+  let requestAborted = false;
+  const onRequestAborted = () => {
+    requestAborted = true;
+  };
+  request.once('aborted', onRequestAborted);
   rewriteVercelRequest(request);
-  const nestHandler = await getHandler();
-  const completion = await waitForResponseCompletion(response, () =>
-    nestHandler(request, response),
-  );
-  if (completion === 'closed') {
-    await resetServerlessAppAfterAbort();
+  try {
+    const nestHandler = await getHandler();
+    const completion = await waitForResponseCompletion(response, () =>
+      nestHandler(request, response),
+    );
+    if (completion === 'closed' || requestAborted) {
+      await resetServerlessAppAfterAbort();
+    }
+  } finally {
+    request.off('aborted', onRequestAborted);
   }
 }
