@@ -12,14 +12,20 @@ import { DATABASE, DATABASE_CLIENT } from './database.constants';
 import * as schema from './schema';
 
 const SERVERLESS_DATABASE_OPTIONS = {
-  max: 1,
-  idle_timeout: 20,
-  max_lifetime: 300,
+  // Keep one stalled socket from blocking every request in a warm Vercel
+  // invocation. Supavisor transaction pooling is designed for this small
+  // per-instance pool and remains the source of truth for connection limits.
+  max: 2,
+  idle_timeout: 10,
+  max_lifetime: 60,
   connect_timeout: 5,
+  keep_alive: 10,
   connection: {
-    statement_timeout: 15_000,
-    lock_timeout: 5_000,
-    idle_in_transaction_session_timeout: 15_000,
+    // Fail before the Admin proxy (12 s) gives up, so the API can return a
+    // bounded error and the next request can use a fresh pooled connection.
+    statement_timeout: 8_000,
+    lock_timeout: 3_000,
+    idle_in_transaction_session_timeout: 8_000,
   },
 } as const;
 
