@@ -90,6 +90,11 @@ export type PublicOrderResponse = {
   };
 };
 
+export type PublicOrderTrackingResponse = Pick<
+  PublicOrderResponse,
+  'id' | 'reference' | 'createdAt' | 'status' | 'paymentMethod' | 'currency' | 'shippingLabel' | 'items' | 'totals'
+>;
+
 export type AdminOrderResponse = {
   id: string;
   reference: string;
@@ -277,6 +282,47 @@ export class OrdersService {
       page: input.page,
       pageSize: input.pageSize,
       total: Number(total ?? 0),
+    };
+  }
+
+  /**
+   * Public tracking is intentionally scoped by both the order reference and
+   * the phone supplied at checkout. PII such as the address and email is not
+   * returned to the browser.
+   */
+  async track(
+    referenceInput: string,
+    phoneInput: string,
+  ): Promise<PublicOrderTrackingResponse> {
+    const database = this.getDatabase();
+    const reference = referenceInput.trim().toUpperCase();
+    const phone = normalizeTunisiaPhone(phoneInput);
+    if (!phone || !reference) throw new NotFoundException('Order not found');
+
+    const [order] = await database
+      .select()
+      .from(orders)
+      .where(eq(orders.reference, reference))
+      .limit(1);
+    if (!order || normalizeTunisiaPhone(order.customerPhone) !== phone) {
+      throw new NotFoundException('Order not found');
+    }
+
+    const itemRows = await this.itemsForOrders(database, [order.id]);
+    const response = this.toResponse({
+      order,
+      items: itemRows.get(order.id) ?? [],
+    });
+    return {
+      id: response.id,
+      reference: response.reference,
+      createdAt: response.createdAt,
+      status: response.status,
+      paymentMethod: response.paymentMethod,
+      currency: response.currency,
+      shippingLabel: response.shippingLabel,
+      items: response.items,
+      totals: response.totals,
     };
   }
 
@@ -560,4 +606,11 @@ export class OrdersService {
     }
     return this.database;
   }
+}
+
+function normalizeTunisiaPhone(raw: string): string | null {
+  const cleaned = raw.replace(/[\s\-.()]/g, '');
+  const match = cleaned.match(/^(?:\+216|00216)?(\d{8})$/);
+  if (!match || !/^[234579]/.test(match[1])) return null;
+  return `+216${match[1]}`;
 }

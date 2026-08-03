@@ -14,6 +14,7 @@ import { Public, RequirePermissions } from '../auth/auth.decorators';
 import {
   CreateOrderDto,
   ListOrdersQueryDto,
+  TrackOrderQueryDto,
   UpdateOrderStatusDto,
 } from './dto/create-order.dto';
 import { OrdersService, type PublicOrderResponse } from './orders.service';
@@ -28,6 +29,12 @@ export class OrdersController {
   @ApiCreatedResponse()
   create(@Body() input: CreateOrderDto): Promise<PublicOrderResponse> {
     return this.orders.create(input);
+  }
+
+  @Get('track')
+  @Public()
+  track(@Query() query: TrackOrderQueryDto) {
+    return this.orders.track(query.reference, query.phone);
   }
 
   @Get()

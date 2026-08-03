@@ -130,3 +130,16 @@ export class ListOrdersQueryDto {
   @IsIn(ORDER_STATUSES)
   status?: (typeof ORDER_STATUSES)[number];
 }
+
+/** Public order lookup. Both values are required to avoid exposing orders by reference alone. */
+export class TrackOrderQueryDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(40)
+  reference!: string;
+
+  @IsString()
+  @MinLength(8)
+  @MaxLength(32)
+  phone!: string;
+}
