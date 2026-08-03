@@ -11,6 +11,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { HttpLoggingInterceptor } from './common/http-logging.interceptor';
 import { environmentSchema } from './config/environment';
 import { DatabaseModule } from './database/database.module';
+import { EmailModule } from './email/email.module';
 import { MediaModule } from './media/media.module';
 import { OrdersModule } from './orders/orders.module';
 
@@ -27,6 +28,7 @@ import { OrdersModule } from './orders/orders.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     DatabaseModule,
+    EmailModule,
     AuthModule,
     CatalogModule,
     MediaModule,

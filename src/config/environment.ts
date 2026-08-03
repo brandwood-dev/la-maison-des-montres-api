@@ -16,6 +16,22 @@ export const environmentSchema = Joi.object({
   SUPABASE_STORAGE_BUCKET: Joi.string()
     .pattern(/^[a-z0-9][a-z0-9._-]{1,62}$/)
     .default('product-media'),
+  BREVO_API_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(20).required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  BREVO_SENDER_EMAIL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().email().required(),
+    otherwise: Joi.string().email().allow('').optional(),
+  }),
+  BREVO_SENDER_NAME: Joi.string().max(120).default('La Maison des Montres'),
+  ORDER_NOTIFICATION_EMAIL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().email().required(),
+    otherwise: Joi.string().email().allow('').optional(),
+  }),
   CORS_ORIGINS: Joi.string().allow('').default(''),
   JWT_ACCESS_SECRET: Joi.when('NODE_ENV', {
     is: 'test',

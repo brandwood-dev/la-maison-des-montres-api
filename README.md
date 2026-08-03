@@ -49,6 +49,10 @@ cp .env.example .env
 - `SUPABASE_SERVICE_ROLE_KEY` : clé secrète serveur Supabase, jamais exposée au
   navigateur
 - `SUPABASE_STORAGE_BUCKET` : bucket public des images produit
+- `BREVO_API_KEY` : clé API Brevo serveur uniquement
+- `BREVO_SENDER_EMAIL` : expéditeur Brevo vérifié
+- `BREVO_SENDER_NAME` : nom affiché par l’expéditeur
+- `ORDER_NOTIFICATION_EMAIL` : boîte qui reçoit les nouvelles commandes
 - `CORS_ORIGINS` : liste d’origines exactes séparées par des virgules ; CORS
   reste désactivé si la liste est vide
 - `JWT_ACCESS_SECRET`

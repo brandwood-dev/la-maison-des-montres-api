@@ -20,6 +20,7 @@ import {
 } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants';
 import type { AppDatabase } from '../database/database.types';
+import { EmailService } from '../email/email.service';
 import {
   brands,
   orderItems,
@@ -146,6 +147,7 @@ export class OrdersService {
   constructor(
     @Inject(DATABASE) private readonly database: AppDatabase | null,
     private readonly config: ConfigService,
+    private readonly email: EmailService,
   ) {}
 
   async create(input: CreateOrderDto): Promise<PublicOrderResponse> {
@@ -241,7 +243,9 @@ export class OrdersService {
           .returning();
         return { order, items: storedItems };
       });
-      return this.toResponse(stored, productsById);
+      const response = this.toResponse(stored, productsById);
+      await this.email.notifyNewOrder(response);
+      return response;
     } catch (error) {
       // A concurrent retry may win the idempotency race. Return its order
       // rather than creating a second order or exposing a database error.
