@@ -9,6 +9,7 @@ import request from 'supertest';
 import handler, {
   closeServerlessAppForTests,
   rewriteVercelRequest,
+  SERVERLESS_REQUEST_TIMEOUT_MS,
   type VercelRequest,
   waitForResponseCompletion,
 } from '../api/index';
@@ -71,6 +72,27 @@ describe('Vercel serverless entrypoint (e2e)', () => {
 
     await expect(completion).resolves.toBe('closed');
     expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases a stalled invocation at the serverless deadline', async () => {
+    jest.useFakeTimers();
+    try {
+      const response = new EventEmitter() as unknown as ServerResponse;
+      response.end = jest.fn(() => response);
+      const completion = waitForResponseCompletion(
+        response,
+        jest.fn(),
+        undefined,
+        50,
+      );
+
+      jest.advanceTimersByTime(50);
+
+      await expect(completion).resolves.toBe('closed');
+    } finally {
+      jest.useRealTimers();
+    }
+    expect(SERVERLESS_REQUEST_TIMEOUT_MS).toBeGreaterThan(0);
   });
 
   it('distinguishes a completed response from an aborted one', async () => {

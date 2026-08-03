@@ -15,7 +15,7 @@ const SERVERLESS_DATABASE_OPTIONS = {
   // Keep one stalled socket from blocking every request in a warm Vercel
   // invocation. Supavisor transaction pooling is designed for this small
   // per-instance pool and remains the source of truth for connection limits.
-  max: 2,
+  max: 5,
   idle_timeout: 10,
   max_lifetime: 60,
   connect_timeout: 5,
