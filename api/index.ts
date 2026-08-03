@@ -22,9 +22,11 @@ export async function closeServerlessAppForTests(): Promise<void> {
 }
 
 async function resetServerlessAppAfterAbort(): Promise<void> {
-  abortedAppCleanup ??= closeServerlessAppForTests().finally(() => {
-    abortedAppCleanup = undefined;
-  });
+  abortedAppCleanup ??= closeServerlessAppForTests()
+    .catch(() => undefined)
+    .finally(() => {
+      abortedAppCleanup = undefined;
+    });
   await abortedAppCleanup;
 }
 

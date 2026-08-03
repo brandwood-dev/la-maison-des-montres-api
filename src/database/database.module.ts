@@ -34,7 +34,12 @@ class DatabaseLifecycle implements OnApplicationShutdown {
   constructor(@Inject(DATABASE_CLIENT) private readonly client: Sql | null) {}
 
   async onApplicationShutdown(): Promise<void> {
-    if (this.client) await this.client.end({ timeout: 5 });
+    if (!this.client) return;
+
+    // A timed-out serverless request may still have a pending PostgreSQL
+    // promise. Closing that client can therefore reject; cleanup must never
+    // turn a recoverable database timeout into an unhandled process rejection.
+    await this.client.end({ timeout: 5 }).catch(() => undefined);
   }
 }
 
