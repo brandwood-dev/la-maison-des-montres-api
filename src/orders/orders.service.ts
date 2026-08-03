@@ -92,7 +92,15 @@ export type PublicOrderResponse = {
 
 export type PublicOrderTrackingResponse = Pick<
   PublicOrderResponse,
-  'id' | 'reference' | 'createdAt' | 'status' | 'paymentMethod' | 'currency' | 'shippingLabel' | 'items' | 'totals'
+  | 'id'
+  | 'reference'
+  | 'createdAt'
+  | 'status'
+  | 'paymentMethod'
+  | 'currency'
+  | 'shippingLabel'
+  | 'items'
+  | 'totals'
 >;
 
 export type AdminOrderResponse = {
