@@ -15,6 +15,17 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+export const ORDER_STATUSES = [
+  'new',
+  'to_confirm',
+  'confirmed',
+  'preparing',
+  'shipped',
+  'delivered',
+  'cancelled',
+  'returned',
+] as const;
+
 export class OrderItemDto {
   @IsUUID()
   productId!: string;
@@ -91,4 +102,31 @@ export class CreateOrderDto {
 
   @IsIn(['cod'])
   paymentMethod!: 'cod';
+}
+
+export class UpdateOrderStatusDto {
+  @IsIn(ORDER_STATUSES)
+  status!: (typeof ORDER_STATUSES)[number];
+}
+
+export class ListOrdersQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  pageSize = 20;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
+
+  @IsOptional()
+  @IsIn(ORDER_STATUSES)
+  status?: (typeof ORDER_STATUSES)[number];
 }

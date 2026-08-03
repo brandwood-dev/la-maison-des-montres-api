@@ -2,12 +2,22 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  NotFoundException,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
-import { asc, eq, inArray } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+} from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants';
 import type { AppDatabase } from '../database/database.types';
 import {
@@ -19,7 +29,11 @@ import {
   type OrderItemRow,
   type OrderRow,
 } from '../database/schema';
-import type { CreateOrderDto, OrderItemDto } from './dto/create-order.dto';
+import type {
+  CreateOrderDto,
+  ListOrdersQueryDto,
+  OrderItemDto,
+} from './dto/create-order.dto';
 
 type ProductSnapshot = {
   id: string;
@@ -74,6 +88,44 @@ export type PublicOrderResponse = {
     totalMillimes: number;
     itemCount: number;
   };
+};
+
+export type AdminOrderResponse = {
+  id: string;
+  reference: string;
+  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  items: Array<{
+    id: string;
+    productId: string;
+    name: string;
+    reference: string;
+    imageUrl?: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
+  subtotal: number;
+  shipping: { method: 'standard'; fee: number; etaDays?: string };
+  discountTotal: number;
+  total: number;
+  currency: string;
+  status: OrderRow['status'];
+  payment: { method: 'cod'; status: OrderRow['paymentStatus'] };
+  shippingAddress: {
+    fullName: string;
+    phone: string;
+    line1: string;
+    city: string;
+    region: string;
+    postalCode?: string;
+    country: string;
+  };
+  history: [];
+  idempotencyKey: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 @Injectable()
@@ -191,6 +243,87 @@ export class OrdersService {
     }
   }
 
+  async list(input: ListOrdersQueryDto) {
+    const database = this.getDatabase();
+    const conditions = [];
+    if (input.q?.trim()) {
+      const query = `%${input.q.trim()}%`;
+      conditions.push(
+        or(
+          ilike(orders.reference, query),
+          ilike(orders.customerName, query),
+          ilike(orders.customerPhone, query),
+        )!,
+      );
+    }
+    if (input.status) conditions.push(eq(orders.status, input.status));
+    const where = conditions.length ? and(...conditions) : undefined;
+    const rows = await database
+      .select()
+      .from(orders)
+      .where(where)
+      .orderBy(desc(orders.createdAt))
+      .limit(input.pageSize)
+      .offset((input.page - 1) * input.pageSize);
+    const [{ value: total }] = await database
+      .select({ value: count() })
+      .from(orders)
+      .where(where);
+    const itemRows = await this.itemsForOrders(database, rows.map((row) => row.id));
+    return {
+      data: rows.map((row) =>
+        this.toAdminResponse({ order: row, items: itemRows.get(row.id) ?? [] }),
+      ),
+      page: input.page,
+      pageSize: input.pageSize,
+      total: Number(total ?? 0),
+    };
+  }
+
+  async get(id: string): Promise<AdminOrderResponse> {
+    const database = this.getDatabase();
+    const [order] = await database
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id))
+      .limit(1);
+    if (!order) throw new NotFoundException('Order not found');
+    const itemRows = await this.itemsForOrders(database, [order.id]);
+    return this.toAdminResponse({ order, items: itemRows.get(order.id) ?? [] });
+  }
+
+  async updateStatus(
+    id: string,
+    nextStatus: AdminOrderResponse['status'],
+  ): Promise<AdminOrderResponse> {
+    const database = this.getDatabase();
+    const current = await this.get(id);
+    const allowed = this.allowedStatusTransitions(current.status);
+    if (!allowed.includes(nextStatus)) {
+      throw new BadRequestException({
+        code: 'INVALID_STATUS_TRANSITION',
+        message: 'This order status cannot be changed to the requested value',
+      });
+    }
+    const [updated] = await database
+      .update(orders)
+      .set({ status: nextStatus, updatedAt: new Date() })
+      .where(eq(orders.id, id))
+      .returning();
+    if (!updated) throw new NotFoundException('Order not found');
+    return this.toAdminResponse({ order: updated, items: current.items.map((item) => ({
+      id: item.id,
+      orderId: updated.id,
+      productId: item.productId,
+      name: item.name,
+      reference: item.reference,
+      imageUrl: item.imageUrl ?? null,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      lineTotal: item.lineTotal,
+    })) });
+  }
+
   private normalizeItems(items: OrderItemDto[]): OrderItemDto[] {
     const seen = new Set<string>();
     for (const item of items) {
@@ -282,6 +415,88 @@ export class OrdersService {
       .where(eq(orderItems.orderId, order.id))
       .orderBy(asc(orderItems.id));
     return { order, items };
+  }
+
+  private async itemsForOrders(
+    database: AppDatabase,
+    orderIds: string[],
+  ): Promise<Map<string, OrderItemRow[]>> {
+    const grouped = new Map<string, OrderItemRow[]>();
+    if (orderIds.length === 0) return grouped;
+    const rows = await database
+      .select()
+      .from(orderItems)
+      .where(inArray(orderItems.orderId, orderIds))
+      .orderBy(asc(orderItems.id));
+    for (const row of rows) {
+      grouped.set(row.orderId, [...(grouped.get(row.orderId) ?? []), row]);
+    }
+    return grouped;
+  }
+
+  private toAdminResponse(stored: StoredOrder): AdminOrderResponse {
+    return {
+      id: stored.order.id,
+      reference: stored.order.reference,
+      customerId: '',
+      customerName: stored.order.customerName,
+      customerPhone: stored.order.customerPhone,
+      items: stored.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.name,
+        reference: item.reference,
+        ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.lineTotal,
+      })),
+      subtotal: stored.order.subtotal,
+      shipping: {
+        method: 'standard',
+        fee: stored.order.shippingFee,
+        etaDays: '2 à 3 jours ouvrés',
+      },
+      discountTotal: 0,
+      total: stored.order.total,
+      currency: stored.order.currency,
+      status: stored.order.status,
+      payment: {
+        method: 'cod',
+        status: stored.order.paymentStatus,
+      },
+      shippingAddress: {
+        fullName: stored.order.customerName,
+        phone: stored.order.customerPhone,
+        line1: stored.order.address,
+        city: stored.order.city,
+        region: stored.order.governorate,
+        ...(stored.order.postalCode
+          ? { postalCode: stored.order.postalCode }
+          : {}),
+        country: 'Tunisie',
+      },
+      history: [],
+      idempotencyKey: stored.order.idempotencyKey,
+      createdAt: stored.order.createdAt.toISOString(),
+      updatedAt: stored.order.updatedAt.toISOString(),
+    };
+  }
+
+  private allowedStatusTransitions(
+    status: AdminOrderResponse['status'],
+  ): AdminOrderResponse['status'][] {
+    const transitions: Record<AdminOrderResponse['status'], AdminOrderResponse['status'][]> = {
+      new: ['to_confirm', 'cancelled'],
+      to_confirm: ['confirmed', 'cancelled'],
+      confirmed: ['preparing', 'cancelled'],
+      preparing: ['shipped', 'cancelled'],
+      shipped: ['delivered', 'returned'],
+      delivered: ['returned'],
+      cancelled: [],
+      returned: [],
+    };
+    return transitions[status];
   }
 
   private toResponse(
