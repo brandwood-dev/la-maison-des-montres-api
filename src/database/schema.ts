@@ -41,6 +41,23 @@ export const productStatus = appSchema.enum('product_status', [
   'published',
   'hidden',
 ]);
+export const orderStatus = appSchema.enum('order_status', [
+  'new',
+  'to_confirm',
+  'confirmed',
+  'preparing',
+  'shipped',
+  'delivered',
+  'cancelled',
+  'returned',
+]);
+export const paymentMethod = appSchema.enum('payment_method', ['cod']);
+export const paymentStatus = appSchema.enum('payment_status', [
+  'pending',
+  'paid',
+  'refunded',
+  'failed',
+]);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
@@ -326,6 +343,66 @@ export const productImages = appSchema.table(
   ],
 );
 
+export const orders = appSchema.table(
+  'orders',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    reference: varchar('reference', { length: 40 }).notNull(),
+    idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
+    customerName: varchar('customer_name', { length: 200 }).notNull(),
+    customerEmail: varchar('customer_email', { length: 320 }),
+    customerPhone: varchar('customer_phone', { length: 32 }).notNull(),
+    governorate: varchar('governorate', { length: 120 }).notNull(),
+    city: varchar('city', { length: 160 }).notNull(),
+    address: text('address').notNull(),
+    postalCode: varchar('postal_code', { length: 16 }),
+    notes: varchar('notes', { length: 500 }),
+    subtotal: integer('subtotal').notNull(),
+    shippingFee: integer('shipping_fee').notNull(),
+    total: integer('total').notNull(),
+    currency: varchar('currency', { length: 3 }).default('TND').notNull(),
+    status: orderStatus('status').default('new').notNull(),
+    paymentMethod: paymentMethod('payment_method').default('cod').notNull(),
+    paymentStatus: paymentStatus('payment_status').default('pending').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('orders_reference_unique').on(table.reference),
+    uniqueIndex('orders_idempotency_key_unique').on(table.idempotencyKey),
+    index('orders_status_created_idx').on(table.status, table.createdAt),
+    index('orders_phone_idx').on(table.customerPhone),
+    check('orders_subtotal_nonnegative', sql`${table.subtotal} >= 0`),
+    check('orders_shipping_nonnegative', sql`${table.shippingFee} >= 0`),
+    check('orders_total_nonnegative', sql`${table.total} >= 0`),
+  ],
+);
+
+export const orderItems = appSchema.table(
+  'order_items',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'restrict' }),
+    name: varchar('name', { length: 240 }).notNull(),
+    reference: varchar('reference', { length: 120 }).notNull(),
+    imageUrl: text('image_url'),
+    quantity: integer('quantity').notNull(),
+    unitPrice: integer('unit_price').notNull(),
+    lineTotal: integer('line_total').notNull(),
+  },
+  (table) => [
+    index('order_items_order_idx').on(table.orderId),
+    index('order_items_product_idx').on(table.productId),
+    check('order_items_quantity_positive', sql`${table.quantity} >= 1`),
+    check('order_items_unit_price_nonnegative', sql`${table.unitPrice} >= 0`),
+    check('order_items_line_total_nonnegative', sql`${table.lineTotal} >= 0`),
+  ],
+);
+
 export type AdminUserRow = typeof adminUsers.$inferSelect;
 export type AdminSessionRow = typeof adminSessions.$inferSelect;
 export type BrandRow = typeof brands.$inferSelect;
@@ -334,3 +411,5 @@ export type AttributeRow = typeof attributes.$inferSelect;
 export type AttributeValueRow = typeof attributeValues.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
 export type ProductImageRow = typeof productImages.$inferSelect;
+export type OrderRow = typeof orders.$inferSelect;
+export type OrderItemRow = typeof orderItems.$inferSelect;

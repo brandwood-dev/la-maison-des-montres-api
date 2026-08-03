@@ -12,6 +12,7 @@ import { HttpLoggingInterceptor } from './common/http-logging.interceptor';
 import { environmentSchema } from './config/environment';
 import { DatabaseModule } from './database/database.module';
 import { MediaModule } from './media/media.module';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { MediaModule } from './media/media.module';
     AuthModule,
     CatalogModule,
     MediaModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [

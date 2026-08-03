@@ -40,6 +40,11 @@ export const environmentSchema = Joi.object({
   DEV_SEED_ENABLED: Joi.boolean().default(false),
   DEV_SEED_SUPER_ADMIN_EMAIL: Joi.string().email().optional(),
   DEV_SEED_SUPER_ADMIN_PASSWORD: Joi.string().min(12).optional(),
+  COD_SHIPPING_FEE_MILLIMES: Joi.number().integer().min(0).default(8_000),
+  COD_FREE_SHIPPING_THRESHOLD_MILLIMES: Joi.number()
+    .integer()
+    .min(0)
+    .default(500_000),
 });
 
 export function parseOrigins(value: string | undefined): string[] {
