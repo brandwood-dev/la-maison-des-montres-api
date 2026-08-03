@@ -602,7 +602,9 @@ export class CatalogService {
     const adminProduct = await this.productResponse(product);
     const publicAttributes = [];
     for (const assignment of product.attributes) {
-      const attribute = await this.repository.findAttribute(assignment.attributeId);
+      const attribute = await this.repository.findAttribute(
+        assignment.attributeId,
+      );
       if (!attribute || !attribute.active) continue;
       const values = [];
       for (const valueId of assignment.valueIds) {
