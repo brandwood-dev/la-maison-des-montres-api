@@ -600,6 +600,32 @@ export class CatalogService {
 
   private async publicProductResponse(product: ProductDetail) {
     const adminProduct = await this.productResponse(product);
+    const publicAttributes = [];
+    for (const assignment of product.attributes) {
+      const attribute = await this.repository.findAttribute(assignment.attributeId);
+      if (!attribute || !attribute.active) continue;
+      const values = [];
+      for (const valueId of assignment.valueIds) {
+        const value = await this.repository.findAttributeValue(valueId);
+        if (!value || !value.active) continue;
+        values.push({
+          id: value.id,
+          label: value.label,
+          slug: value.slug,
+          ...(value.swatch ? { swatch: value.swatch } : {}),
+          ...(value.imageUrl ? { imageUrl: value.imageUrl } : {}),
+        });
+      }
+      if (values.length > 0) {
+        publicAttributes.push({
+          id: attribute.id,
+          code: attribute.slug,
+          label: attribute.name,
+          type: attribute.type,
+          values,
+        });
+      }
+    }
     const categories = [];
     for (const id of product.categoryIds) {
       categories.push(await this.categoryRow(id));
@@ -637,6 +663,7 @@ export class CatalogService {
         alt: image.alt ?? adminProduct.name,
         position: image.order + 1,
       })),
+      attributes: publicAttributes,
       shortDescription: adminProduct.description,
       dialColor: null,
       braceletMaterial: null,
