@@ -44,6 +44,7 @@ async function getHandler(): Promise<NodeHandler> {
 export function waitForResponseCompletion(
   response: ServerResponse,
   dispatch: ResponseDispatcher,
+  request?: IncomingMessage,
 ): Promise<ResponseCompletion> {
   return new Promise<ResponseCompletion>((resolve, reject) => {
     const originalEnd = response.end.bind(response);
@@ -53,6 +54,7 @@ export function waitForResponseCompletion(
       response.off('finish', finish);
       response.off('close', close);
       response.off('error', fail);
+      request?.off('aborted', aborted);
       response.end = originalEnd;
     };
     const complete = (completion: ResponseCompletion) => {
@@ -69,10 +71,12 @@ export function waitForResponseCompletion(
       cleanup();
       reject(error);
     };
+    const aborted = () => complete('closed');
 
     response.once('finish', finish);
     response.once('close', close);
     response.once('error', fail);
+    request?.once('aborted', aborted);
     response.end = ((...args: unknown[]) => {
       endCalled = true;
       const result = Reflect.apply(
@@ -121,8 +125,10 @@ export default async function handler(
   rewriteVercelRequest(request);
   try {
     const nestHandler = await getHandler();
-    const completion = await waitForResponseCompletion(response, () =>
-      nestHandler(request, response),
+    const completion = await waitForResponseCompletion(
+      response,
+      () => nestHandler(request, response),
+      request,
     );
     if (completion === 'closed' || requestAborted) {
       await resetServerlessAppAfterAbort();

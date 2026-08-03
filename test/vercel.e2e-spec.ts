@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events';
-import { createServer, Server, type ServerResponse } from 'node:http';
+import {
+  createServer,
+  Server,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http';
 import request from 'supertest';
 import handler, {
   closeServerlessAppForTests,
@@ -52,6 +57,19 @@ describe('Vercel serverless entrypoint (e2e)', () => {
     await expect(waitForResponseCompletion(response, dispatch)).resolves.toBe(
       'closed',
     );
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the invocation when the request aborts before Nest responds', async () => {
+    const request = new EventEmitter() as unknown as IncomingMessage;
+    const response = new EventEmitter() as unknown as ServerResponse;
+    response.end = jest.fn(() => response);
+    const dispatch = jest.fn();
+    const completion = waitForResponseCompletion(response, dispatch, request);
+
+    request.emit('aborted');
+
+    await expect(completion).resolves.toBe('closed');
     expect(dispatch).toHaveBeenCalledTimes(1);
   });
 
