@@ -180,6 +180,19 @@ export class CatalogService {
     return { ...page, data };
   }
 
+  async listPublicAttributes(input: ListQueryDto) {
+    const page = await this.repository.listAttributes({
+      ...this.pagination(input),
+      active: true,
+      filterable: true,
+    });
+    const data = [];
+    for (const row of page.data) {
+      data.push(await this.attributeResponse(row));
+    }
+    return { ...page, data };
+  }
+
   async getAttribute(id: string) {
     return this.attributeResponse(await this.attributeRow(id));
   }

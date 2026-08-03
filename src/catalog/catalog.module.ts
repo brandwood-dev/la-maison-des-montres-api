@@ -9,6 +9,7 @@ import {
   PublicProductsController,
   PublicBrandsController,
   PublicCategoriesController,
+  PublicAttributesController,
 } from './catalog.controllers';
 import { DrizzleCatalogRepository } from './catalog.repository';
 import { CatalogService } from './catalog.service';
@@ -23,6 +24,7 @@ import { CatalogService } from './catalog.service';
     PublicProductsController,
     PublicBrandsController,
     PublicCategoriesController,
+    PublicAttributesController,
   ],
   providers: [
     CatalogService,

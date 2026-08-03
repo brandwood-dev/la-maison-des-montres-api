@@ -45,6 +45,7 @@ export interface PaginationInput {
   sortBy?: string;
   sortOrder: 'asc' | 'desc';
   active?: boolean;
+  filterable?: boolean;
 }
 
 export interface ProductListInput extends PaginationInput {
@@ -264,6 +265,8 @@ export class DrizzleCatalogRepository implements CatalogRepository {
     if (input.q) conditions.push(ilike(attributes.name, `%${input.q}%`));
     if (input.active !== undefined)
       conditions.push(eq(attributes.active, input.active));
+    if (input.filterable !== undefined)
+      conditions.push(eq(attributes.filterable, input.filterable));
     const orderColumn =
       input.sortBy === 'createdAt'
         ? attributes.createdAt

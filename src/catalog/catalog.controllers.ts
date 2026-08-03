@@ -329,3 +329,15 @@ export class PublicCategoriesController {
     return this.catalog.listPublicCategories(query);
   }
 }
+
+@Controller('api/v1/public/attributes')
+@Public()
+export class PublicAttributesController {
+  constructor(private readonly catalog: CatalogService) {}
+
+  @Get()
+  @ApiOkResponse({ type: AttributePageResponseDto })
+  list(@Query() query: ListQueryDto) {
+    return this.catalog.listPublicAttributes(query);
+  }
+}
