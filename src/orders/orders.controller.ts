@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -33,6 +34,7 @@ export class OrdersController {
 
   @Get('track')
   @Public()
+  @Header('Cache-Control', 'no-store')
   track(@Query() query: TrackOrderQueryDto) {
     return this.orders.track(query.reference, query.phone);
   }
