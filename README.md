@@ -52,6 +52,8 @@ cp .env.example .env
 - `BREVO_API_KEY` : clé API Brevo serveur uniquement
 - `BREVO_SENDER_EMAIL` : expéditeur Brevo vérifié
 - `BREVO_SENDER_NAME` : nom affiché par l’expéditeur
+- `ADMIN_PUBLIC_URL` : URL publique de l’espace Admin utilisée pour les liens
+  d’invitation (obligatoire en production)
 - `ORDER_NOTIFICATION_EMAIL` : boîte qui reçoit les nouvelles commandes
 - `CORS_ORIGINS` : liste d’origines exactes séparées par des virgules ; CORS
   reste désactivé si la liste est vide
@@ -125,6 +127,7 @@ Routes :
 - `POST /api/v1/auth/refresh`
 - `POST /api/v1/auth/logout`
 - `GET /api/v1/auth/me`
+- `POST /api/v1/auth/invitations/:token/accept` (public, usage unique, 24 h)
 
 Les JWT ne sont jamais retournés dans le JSON et ne doivent pas être stockés
 dans `localStorage`. Les cookies utilisent `HttpOnly`, `SameSite=Strict` et
@@ -140,6 +143,21 @@ Rôles contractuels :
 
 La matrice de permissions est définie côté serveur dans
 `src/auth/permissions.ts`. Les routes sensibles sont limitées en débit.
+
+## Équipe et invitations
+
+La gestion de l’équipe est réservée à `super_admin` :
+
+- `GET /api/v1/admin/team`
+- `POST /api/v1/admin/team/invitations`
+- `POST /api/v1/admin/team/invitations/:id/resend`
+- `DELETE /api/v1/admin/team/invitations/:id`
+- `PATCH /api/v1/admin/team/:id`
+
+Une invitation stocke uniquement un hash SHA-256 du jeton, expire après 24
+heures et devient inutilisable dès son acceptation. Le mot de passe est choisi
+sur l’espace Admin puis hashé avec Argon2id côté API. Brevo est utilisé côté
+serveur pour envoyer le lien ; aucun jeton n’est renvoyé dans les réponses API.
 
 ## Catalogue V1
 

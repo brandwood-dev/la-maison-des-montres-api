@@ -5,6 +5,14 @@ import type { PublicOrderResponse } from '../orders/orders.service';
 const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
 const EMAIL_TIMEOUT_MS = 7_000;
 
+export interface TeamInvitationEmail {
+  email: string;
+  firstName: string;
+  role: string;
+  token: string;
+  message?: string;
+}
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -44,6 +52,64 @@ export class EmailService {
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async sendTeamInvitation(input: TeamInvitationEmail): Promise<void> {
+    const apiKey = this.config.get<string>('BREVO_API_KEY');
+    const senderEmail = this.config.get<string>('BREVO_SENDER_EMAIL');
+    if (!apiKey || !senderEmail) {
+      throw new Error('Brevo invitation configuration is incomplete');
+    }
+
+    const adminUrl = this.config
+      .getOrThrow<string>('ADMIN_PUBLIC_URL')
+      .replace(/\/+$/, '');
+    const invitationUrl = `${adminUrl}/invite/${encodeURIComponent(input.token)}`;
+    const senderName = this.config.get<string>(
+      'BREVO_SENDER_NAME',
+      'La Maison des Montres',
+    );
+    const role = escapeHtml(input.role);
+    const firstName = escapeHtml(input.firstName);
+    const customMessage = input.message?.trim();
+    const textContent = [
+      `Bonjour ${input.firstName},`,
+      '',
+      `Vous êtes invité(e) à rejoindre l'administration de La Maison des Montres (${input.role}).`,
+      customMessage ? `Message : ${customMessage}` : '',
+      '',
+      `Configurez votre mot de passe dans les 24 heures : ${invitationUrl}`,
+      '',
+      'Si vous n’êtes pas à l’origine de cette demande, ignorez ce message.',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const htmlContent = `<!doctype html><html lang="fr"><body style="margin:0;padding:24px;background:#f4f3ed;color:#1c1b1b;font-family:Arial,Helvetica,sans-serif;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #eae8e0;border-radius:14px;overflow:hidden;"><tr><td style="height:5px;background:#c89d54;font-size:0;line-height:0">&nbsp;</td></tr><tr><td style="padding:28px"><p style="margin:0 0 8px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#6b6a68">La Maison des Montres</p><h1 style="margin:0 0 16px;font-size:24px">Invitation administrateur</h1><p>Bonjour <strong>${firstName}</strong>,</p><p>Vous êtes invité(e) à rejoindre l’administration avec le rôle <strong>${role}</strong>.</p>${customMessage ? `<p style="padding:12px;background:#f4f3ed;border-radius:8px">${escapeHtml(customMessage)}</p>` : ''}<p style="margin:24px 0"><a href="${escapeHtml(invitationUrl)}" style="display:inline-block;padding:12px 18px;background:#1c1b1b;color:#fff;text-decoration:none;border-radius:8px">Créer mon accès</a></p><p style="font-size:13px;color:#6b6a68">Ce lien expire dans 24 heures et ne peut être utilisé qu’une seule fois.</p></td></tr><tr><td style="padding:14px 28px;background:#1c1b1b;color:#fff;font-size:12px">Notification automatique · La Maison des Montres</td></tr></table></body></html>`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), EMAIL_TIMEOUT_MS);
+    try {
+      const response = await fetch(BREVO_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'api-key': apiKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { email: senderEmail, name: senderName },
+          to: [{ email: input.email }],
+          subject: 'Invitation à rejoindre La Maison des Montres',
+          textContent,
+          htmlContent,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok)
+        throw new Error(`Brevo returned HTTP ${response.status}`);
     } finally {
       clearTimeout(timeout);
     }

@@ -27,6 +27,15 @@ export const environmentSchema = Joi.object({
     otherwise: Joi.string().email().allow('').optional(),
   }),
   BREVO_SENDER_NAME: Joi.string().max(120).default('La Maison des Montres'),
+  ADMIN_PUBLIC_URL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string()
+      .uri({ scheme: ['http', 'https'] })
+      .required(),
+    otherwise: Joi.string()
+      .uri({ scheme: ['http', 'https'] })
+      .default('http://localhost:4173'),
+  }),
   ORDER_NOTIFICATION_EMAIL: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string().email().required(),

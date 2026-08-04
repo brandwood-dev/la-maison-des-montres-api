@@ -124,6 +124,39 @@ export const adminSessions = appSchema.table(
   ],
 );
 
+/**
+ * Invitations are intentionally separate from admin_users. A pending invite
+ * never receives a password hash or an active session until it is accepted.
+ */
+export const adminInvitations = appSchema.table(
+  'admin_invitations',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    email: varchar('email', { length: 320 }).notNull(),
+    firstName: varchar('first_name', { length: 100 }).notNull(),
+    lastName: varchar('last_name', { length: 100 }).notNull(),
+    phone: varchar('phone', { length: 32 }),
+    role: adminRole('role').notNull(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    expiresAt: timestamp('expires_at', {
+      withTimezone: true,
+      mode: 'date',
+    }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true, mode: 'date' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    createdBy: uuid('created_by').references(() => adminUsers.id, {
+      onDelete: 'set null',
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('admin_invitations_token_hash_unique').on(table.tokenHash),
+    index('admin_invitations_email_idx').on(sql`lower(${table.email})`),
+    index('admin_invitations_expires_idx').on(table.expiresAt),
+    index('admin_invitations_creator_idx').on(table.createdBy),
+  ],
+);
+
 export const brands = appSchema.table(
   'brands',
   {
@@ -405,6 +438,7 @@ export const orderItems = appSchema.table(
 
 export type AdminUserRow = typeof adminUsers.$inferSelect;
 export type AdminSessionRow = typeof adminSessions.$inferSelect;
+export type AdminInvitationRow = typeof adminInvitations.$inferSelect;
 export type BrandRow = typeof brands.$inferSelect;
 export type CategoryRow = typeof categories.$inferSelect;
 export type AttributeRow = typeof attributes.$inferSelect;

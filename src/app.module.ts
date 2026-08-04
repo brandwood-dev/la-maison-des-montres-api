@@ -14,6 +14,7 @@ import { DatabaseModule } from './database/database.module';
 import { EmailModule } from './email/email.module';
 import { MediaModule } from './media/media.module';
 import { OrdersModule } from './orders/orders.module';
+import { TeamModule } from './team/team.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { OrdersModule } from './orders/orders.module';
     CatalogModule,
     MediaModule,
     OrdersModule,
+    TeamModule,
   ],
   controllers: [AppController],
   providers: [
