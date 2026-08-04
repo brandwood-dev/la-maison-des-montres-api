@@ -33,6 +33,36 @@ export class FakeAuthRepository implements AuthRepository {
     return Promise.resolve(this.users.find((user) => user.id === id) ?? null);
   }
 
+  updatePasswordHash(
+    id: string,
+    passwordHash: string,
+  ): Promise<AdminUserRow | null> {
+    const user = this.users.find((item) => item.id === id);
+    if (!user) return Promise.resolve(null);
+    user.passwordHash = passwordHash;
+    user.updatedAt = new Date();
+    return Promise.resolve(user);
+  }
+
+  updateProfile(
+    id: string,
+    input: Partial<
+      Pick<
+        AdminUserRow,
+        | 'firstName'
+        | 'lastName'
+        | 'phone'
+        | 'avatarUrl'
+        | 'notificationPreferences'
+      >
+    >,
+  ): Promise<AdminUserRow | null> {
+    const user = this.users.find((item) => item.id === id);
+    if (!user) return Promise.resolve(null);
+    Object.assign(user, input, { updatedAt: new Date() });
+    return Promise.resolve(user);
+  }
+
   touchLastLogin(id: string, at: Date): Promise<void> {
     const user = this.users.find((item) => item.id === id);
     if (user) user.lastLoginAt = at;

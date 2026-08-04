@@ -89,6 +89,13 @@ function userRow(): AdminUserRow {
     lastName: 'Test',
     phone: null,
     avatarUrl: null,
+    notificationPreferences: {
+      newOrder: true,
+      toConfirm: true,
+      lowStock: true,
+      reviews: false,
+      emailDigest: true,
+    },
     role: 'super_admin',
     status: 'active',
     lastLoginAt: null,

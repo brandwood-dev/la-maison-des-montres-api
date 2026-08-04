@@ -116,6 +116,23 @@ export class AuthService {
     return this.toAdmin(user);
   }
 
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    nextPassword: string,
+  ): Promise<void> {
+    const user = await this.repository.findUserById(userId);
+    if (!user || !(await verify(user.passwordHash, currentPassword))) {
+      throw new UnauthorizedException('Current password is invalid');
+    }
+    const passwordHash = await AuthService.hashPassword(nextPassword);
+    const updated = await this.repository.updatePasswordHash(
+      userId,
+      passwordHash,
+    );
+    if (!updated) throw new UnauthorizedException('Admin user is unavailable');
+  }
+
   permissionsFor(user: AuthenticatedAdmin) {
     return ROLE_PERMISSIONS[user.role];
   }

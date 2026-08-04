@@ -64,6 +64,13 @@ async function adminUser(): Promise<AdminUserRow> {
     lastName: 'Admin',
     phone: null,
     avatarUrl: null,
+    notificationPreferences: {
+      newOrder: true,
+      toConfirm: true,
+      lowStock: true,
+      reviews: false,
+      emailDigest: true,
+    },
     role: 'super_admin',
     status: 'active',
     lastLoginAt: null,

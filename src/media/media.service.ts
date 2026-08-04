@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -41,17 +42,33 @@ export class MediaService {
   async createProductUploadTicket(
     input: ProductMediaUploadInput,
   ): Promise<ProductMediaUploadTicket> {
-    this.validateInput(input);
+    this.validateInput(input, MAX_IMAGE_SIZE);
+    return this.createUploadTicket(input, 'products');
+  }
+
+  async createAdminAvatarUploadTicket(
+    input: ProductMediaUploadInput,
+  ): Promise<ProductMediaUploadTicket> {
+    this.validateInput(input, MAX_AVATAR_SIZE);
+    return this.createUploadTicket(input, 'admin-avatars');
+  }
+
+  private async createUploadTicket(
+    input: ProductMediaUploadInput,
+    prefix: string,
+  ): Promise<ProductMediaUploadTicket> {
     const bucket = this.config.getOrThrow<string>('SUPABASE_STORAGE_BUCKET');
     const extension = extname(input.fileName).toLowerCase();
-    const key = `products/${randomUUID()}${extension || this.extensionFor(input.contentType)}`;
+    const key = `${prefix}/${randomUUID()}${extension || this.extensionFor(input.contentType)}`;
     const storage = this.getClient().storage.from(bucket);
     const { data, error } = await storage.createSignedUploadUrl(key, {
       upsert: false,
     });
 
     if (error || !data) {
-      throw new ServiceUnavailableException('Impossible de préparer le stockage image');
+      throw new ServiceUnavailableException(
+        'Impossible de préparer le stockage image',
+      );
     }
 
     const publicUrl = storage.getPublicUrl(key).data.publicUrl;
@@ -80,15 +97,17 @@ export class MediaService {
     return this.client;
   }
 
-  private validateInput(input: ProductMediaUploadInput): void {
+  private validateInput(input: ProductMediaUploadInput, maxSize: number): void {
     if (!ALLOWED_IMAGE_TYPES.has(input.contentType)) {
       throw new BadRequestException('Type d’image non pris en charge');
     }
     if (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 1) {
       throw new BadRequestException('Taille d’image invalide');
     }
-    if (input.sizeBytes > MAX_IMAGE_SIZE) {
-      throw new BadRequestException('Image trop volumineuse (5 Mo maximum)');
+    if (input.sizeBytes > maxSize) {
+      throw new BadRequestException(
+        `Image trop volumineuse (${maxSize / (1024 * 1024)} Mo maximum)`,
+      );
     }
     if (!input.fileName || input.fileName.length > 255) {
       throw new BadRequestException('Nom de fichier invalide');

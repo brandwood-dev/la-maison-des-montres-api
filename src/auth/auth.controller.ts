@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   Post,
+  Patch,
   Req,
   Res,
 } from '@nestjs/common';
@@ -21,6 +22,7 @@ import { AuthService, type AuthResult } from './auth.service';
 import type { AuthenticatedRequest } from './auth.types';
 import { AuthSessionResponseDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Controller('api/v1/auth')
 export class AuthController {
@@ -82,6 +84,21 @@ export class AuthController {
       user: request.admin,
       permissions: request.permissions,
     };
+  }
+
+  @Patch('password')
+  @HttpCode(204)
+  @ApiCookieAuth(ACCESS_COOKIE)
+  @ApiNoContentResponse()
+  async changePassword(
+    @Req() request: AuthenticatedRequest,
+    @Body() input: ChangePasswordDto,
+  ): Promise<void> {
+    await this.auth.changePassword(
+      request.admin?.id ?? '',
+      input.currentPassword,
+      input.nextPassword,
+    );
   }
 
   private setCookies(response: Response, result: AuthResult): void {

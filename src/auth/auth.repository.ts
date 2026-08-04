@@ -9,6 +9,7 @@ import type { AppDatabase } from '../database/database.types';
 import {
   adminSessions,
   adminUsers,
+  type AdminNotificationPreferences,
   type AdminSessionRow,
   type AdminUserRow,
 } from '../database/schema';
@@ -16,6 +17,20 @@ import {
 export interface AuthRepository {
   findUserByEmail(email: string): Promise<AdminUserRow | null>;
   findUserById(id: string): Promise<AdminUserRow | null>;
+  updatePasswordHash(
+    id: string,
+    passwordHash: string,
+  ): Promise<AdminUserRow | null>;
+  updateProfile(
+    id: string,
+    input: Partial<{
+      firstName: string;
+      lastName: string;
+      phone: string | null;
+      avatarUrl: string | null;
+      notificationPreferences: AdminNotificationPreferences;
+    }>,
+  ): Promise<AdminUserRow | null>;
   touchLastLogin(id: string, at: Date): Promise<void>;
   createSession(input: {
     id: string;
@@ -51,6 +66,36 @@ export class DrizzleAuthRepository implements AuthRepository {
       .where(eq(adminUsers.id, id))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  async updatePasswordHash(
+    id: string,
+    passwordHash: string,
+  ): Promise<AdminUserRow | null> {
+    const [row] = await this.getDatabase()
+      .update(adminUsers)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(adminUsers.id, id))
+      .returning();
+    return row ?? null;
+  }
+
+  async updateProfile(
+    id: string,
+    input: Partial<{
+      firstName: string;
+      lastName: string;
+      phone: string | null;
+      avatarUrl: string | null;
+      notificationPreferences: AdminNotificationPreferences;
+    }>,
+  ): Promise<AdminUserRow | null> {
+    const [row] = await this.getDatabase()
+      .update(adminUsers)
+      .set({ ...input, updatedAt: new Date() })
+      .where(eq(adminUsers.id, id))
+      .returning();
+    return row ?? null;
   }
 
   async touchLastLogin(id: string, at: Date): Promise<void> {

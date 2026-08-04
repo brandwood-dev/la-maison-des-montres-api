@@ -15,6 +15,7 @@ import { DatabaseModule } from './database/database.module';
 import { EmailModule } from './email/email.module';
 import { MediaModule } from './media/media.module';
 import { OrdersModule } from './orders/orders.module';
+import { ProfileModule } from './profile/profile.module';
 import { TeamModule } from './team/team.module';
 
 @Module({
@@ -36,6 +37,7 @@ import { TeamModule } from './team/team.module';
     CatalogModule,
     MediaModule,
     OrdersModule,
+    ProfileModule,
     TeamModule,
   ],
   controllers: [AppController],

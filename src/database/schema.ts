@@ -6,6 +6,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgSchema,
   primaryKey,
   text,
@@ -28,6 +29,23 @@ export const adminStatus = appSchema.enum('admin_status', [
   'pending',
   'disabled',
 ]);
+
+export type AdminNotificationPreferences = {
+  newOrder: boolean;
+  toConfirm: boolean;
+  lowStock: boolean;
+  reviews: boolean;
+  emailDigest: boolean;
+};
+
+export const DEFAULT_ADMIN_NOTIFICATION_PREFERENCES: AdminNotificationPreferences =
+  {
+    newOrder: true,
+    toConfirm: true,
+    lowStock: true,
+    reviews: false,
+    emailDigest: true,
+  };
 export const attributeType = appSchema.enum('attribute_type', [
   'select',
   'multiselect',
@@ -78,6 +96,10 @@ export const adminUsers = appSchema.table(
     lastName: varchar('last_name', { length: 100 }).notNull(),
     phone: varchar('phone', { length: 32 }),
     avatarUrl: text('avatar_url'),
+    notificationPreferences: jsonb('notification_preferences')
+      .$type<AdminNotificationPreferences>()
+      .default(DEFAULT_ADMIN_NOTIFICATION_PREFERENCES)
+      .notNull(),
     role: adminRole('role').notNull(),
     status: adminStatus('status').default('pending').notNull(),
     lastLoginAt: timestamp('last_login_at', {

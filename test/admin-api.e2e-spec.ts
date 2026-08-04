@@ -293,6 +293,13 @@ async function user(
     lastName: 'User',
     phone: null,
     avatarUrl: null,
+    notificationPreferences: {
+      newOrder: true,
+      toConfirm: true,
+      lowStock: true,
+      reviews: false,
+      emailDigest: true,
+    },
     role,
     status: 'active',
     lastLoginAt: null,
