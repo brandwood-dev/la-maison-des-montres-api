@@ -103,8 +103,11 @@ export class DashboardService {
         })
         .from(orders)
         .where(deliveredWhere)
-        .groupBy(day)
-        .orderBy(day),
+        // Use positional references so Drizzle does not bind the timezone
+        // parameter three times. PostgreSQL treats those distinct bind
+        // parameters as different expressions during GROUP BY validation.
+        .groupBy(sql.raw('1'))
+        .orderBy(sql.raw('1')),
       database
         .select({ value: sql<string>`count(distinct ${orders.customerPhone})` })
         .from(orders)
