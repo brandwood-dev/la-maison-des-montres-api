@@ -54,6 +54,9 @@ cp .env.example .env
 - `BREVO_SENDER_NAME` : nom affiché par l’expéditeur
 - `ADMIN_PUBLIC_URL` : URL publique de l’espace Admin utilisée pour les liens
   d’invitation (obligatoire en production)
+- `CLOUDFLARE_ACCOUNT_ID` : identifiant du compte Cloudflare (serveur uniquement)
+- `CLOUDFLARE_ACCESS_GROUP_ID` : groupe Access synchronisé avec les membres Admin
+- `CLOUDFLARE_API_TOKEN` : jeton Cloudflare limité à la gestion des groupes Access
 - `ORDER_NOTIFICATION_EMAIL` : boîte qui reçoit les nouvelles commandes
 - `CORS_ORIGINS` : liste d’origines exactes séparées par des virgules ; CORS
   reste désactivé si la liste est vide
@@ -158,6 +161,9 @@ Une invitation stocke uniquement un hash SHA-256 du jeton, expire après 24
 heures et devient inutilisable dès son acceptation. Le mot de passe est choisi
 sur l’espace Admin puis hashé avec Argon2id côté API. Brevo est utilisé côté
 serveur pour envoyer le lien ; aucun jeton n’est renvoyé dans les réponses API.
+L’API synchronise automatiquement l’e-mail invité avec un groupe Cloudflare
+Access dédié. La politique Access autorise ce groupe et le super-administrateur
+principal ; le jeton Cloudflare reste uniquement côté serveur.
 
 ## Catalogue V1
 

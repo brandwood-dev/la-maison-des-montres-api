@@ -4,11 +4,13 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { AuthService } from '../auth/auth.service';
 import type { AuthenticatedRequest } from '../auth/auth.types';
+import { CloudflareAccessService } from '../access/cloudflare-access.service';
 import { EmailService } from '../email/email.service';
 import type { AdminUserRow } from '../database/schema';
 import { TEAM_REPOSITORY } from './team.constants';
@@ -25,6 +27,7 @@ export class TeamService {
   constructor(
     @Inject(TEAM_REPOSITORY) private readonly repository: TeamRepository,
     private readonly email: EmailService,
+    @Optional() private readonly access?: CloudflareAccessService,
   ) {}
 
   async list() {
@@ -68,6 +71,7 @@ export class TeamService {
     });
 
     try {
+      await this.access?.setEmailAccess(invitation.email, true);
       await this.email.sendTeamInvitation({
         email: invitation.email,
         firstName: invitation.firstName,
@@ -100,6 +104,7 @@ export class TeamService {
     });
     if (!updated) throw new NotFoundException('Invitation not found');
     try {
+      await this.access?.setEmailAccess(updated.email, true);
       await this.email.sendTeamInvitation({
         email: updated.email,
         firstName: updated.firstName,
@@ -115,6 +120,11 @@ export class TeamService {
   }
 
   async revoke(id: string): Promise<void> {
+    const invitation = (await this.repository.listPendingInvitations()).find(
+      (item) => item.id === id,
+    );
+    if (!invitation) throw new NotFoundException('Invitation not found');
+    await this.access?.setEmailAccess(invitation.email, false);
     const updated = await this.repository.updateInvitation(id, {
       revokedAt: new Date(),
       updatedAt: new Date(),
@@ -147,6 +157,9 @@ export class TeamService {
       throw new ConflictException(
         'At least one active super administrator is required',
       );
+    }
+    if (input.status !== undefined && input.status !== user.status) {
+      await this.access?.setEmailAccess(user.email, input.status === 'active');
     }
     const updated = await this.repository.updateUser(id, {
       ...(input.role !== undefined ? { role: input.role } : {}),

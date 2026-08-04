@@ -4,6 +4,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AccessModule } from './access/access.module';
 import { AdminAuthGuard } from './auth/auth.guard';
 import { AuthModule } from './auth/auth.module';
 import { PermissionsGuard } from './auth/permissions.guard';
@@ -28,6 +29,7 @@ import { TeamModule } from './team/team.module';
       },
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    AccessModule,
     DatabaseModule,
     EmailModule,
     AuthModule,

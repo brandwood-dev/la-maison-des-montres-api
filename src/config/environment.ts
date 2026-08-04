@@ -36,6 +36,25 @@ export const environmentSchema = Joi.object({
       .uri({ scheme: ['http', 'https'] })
       .default('http://localhost:4173'),
   }),
+  CLOUDFLARE_ACCOUNT_ID: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string()
+      .pattern(/^[a-f0-9]{32}$/i)
+      .required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  CLOUDFLARE_ACCESS_GROUP_ID: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string()
+      .guid({ version: ['uuidv4', 'uuidv5'] })
+      .required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
+  CLOUDFLARE_API_TOKEN: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(20).required(),
+    otherwise: Joi.string().allow('').optional(),
+  }),
   ORDER_NOTIFICATION_EMAIL: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string().email().required(),
