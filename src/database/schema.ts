@@ -213,6 +213,7 @@ export const categories = appSchema.table(
     sortOrder: integer('sort_order').default(0).notNull(),
     seoTitle: varchar('seo_title', { length: 255 }),
     seoDescription: varchar('seo_description', { length: 500 }),
+    slugCustom: boolean('slug_custom').default(false).notNull(),
     active: boolean('active').default(true).notNull(),
     ...timestamps,
   },
@@ -299,6 +300,11 @@ export const products = appSchema.table(
     seoSlug: varchar('seo_slug', { length: 240 }).notNull(),
     seoTitle: varchar('seo_title', { length: 255 }),
     seoDescription: varchar('seo_description', { length: 500 }),
+    seoSlugCustom: boolean('seo_slug_custom').default(false).notNull(),
+    seoTitleCustom: boolean('seo_title_custom').default(false).notNull(),
+    seoDescriptionCustom: boolean('seo_description_custom')
+      .default(false)
+      .notNull(),
     ...timestamps,
   },
   (table) => [
@@ -419,12 +425,17 @@ export const orders = appSchema.table(
     status: orderStatus('status').default('new').notNull(),
     paymentMethod: paymentMethod('payment_method').default('cod').notNull(),
     paymentStatus: paymentStatus('payment_status').default('pending').notNull(),
+    deliveredAt: timestamp('delivered_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
     ...timestamps,
   },
   (table) => [
     uniqueIndex('orders_reference_unique').on(table.reference),
     uniqueIndex('orders_idempotency_key_unique').on(table.idempotencyKey),
     index('orders_status_created_idx').on(table.status, table.createdAt),
+    index('orders_status_delivered_idx').on(table.status, table.deliveredAt),
     index('orders_phone_idx').on(table.customerPhone),
     check('orders_subtotal_nonnegative', sql`${table.subtotal} >= 0`),
     check('orders_shipping_nonnegative', sql`${table.shippingFee} >= 0`),

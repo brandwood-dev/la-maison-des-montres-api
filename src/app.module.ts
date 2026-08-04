@@ -9,6 +9,7 @@ import { AdminAuthGuard } from './auth/auth.guard';
 import { AuthModule } from './auth/auth.module';
 import { PermissionsGuard } from './auth/permissions.guard';
 import { CatalogModule } from './catalog/catalog.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { HttpLoggingInterceptor } from './common/http-logging.interceptor';
 import { environmentSchema } from './config/environment';
 import { DatabaseModule } from './database/database.module';
@@ -35,6 +36,7 @@ import { TeamModule } from './team/team.module';
     EmailModule,
     AuthModule,
     CatalogModule,
+    DashboardModule,
     MediaModule,
     OrdersModule,
     ProfileModule,

@@ -7,6 +7,7 @@ export const adminRoles = [
 export type AdminRole = (typeof adminRoles)[number];
 
 export const permissions = [
+  'dashboard.read',
   'team.manage',
   'products.read',
   'products.write',
@@ -30,6 +31,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
   super_admin: permissions,
   admin: permissions.filter((permission) => permission !== 'team.manage'),
   operateur: [
+    'dashboard.read',
     'products.read',
     'stock.write',
     'orders.read',
@@ -39,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     'notifications.read',
   ],
   lecture_seule: [
+    'dashboard.read',
     'products.read',
     'orders.read',
     'customers.read',

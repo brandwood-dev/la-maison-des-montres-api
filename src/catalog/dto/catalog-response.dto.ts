@@ -7,6 +7,15 @@ export class SeoResponseDto {
 
   @ApiPropertyOptional()
   description?: string;
+
+  @ApiPropertyOptional({ readOnly: true })
+  slugCustom?: boolean;
+
+  @ApiPropertyOptional({ readOnly: true })
+  titleCustom?: boolean;
+
+  @ApiPropertyOptional({ readOnly: true })
+  descriptionCustom?: boolean;
 }
 
 export class ProductSeoResponseDto extends SeoResponseDto {
@@ -46,6 +55,9 @@ export class CategoryResponseDto {
 
   @ApiProperty()
   slug!: string;
+
+  @ApiPropertyOptional({ readOnly: true })
+  slugCustom?: boolean;
 
   @ApiPropertyOptional()
   description?: string;

@@ -51,6 +51,18 @@ export class ProductSeoDto extends SeoDto {
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   @MaxLength(240)
   slug?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  slugCustom?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  titleCustom?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  descriptionCustom?: boolean;
 }
 
 export class ListQueryDto {
@@ -134,6 +146,10 @@ export class PublicProductListQueryDto extends ListQueryDto {
   @IsInt()
   @Min(0)
   maxPrice?: number;
+
+  @IsOptional()
+  @IsEnum(['active'])
+  promotion?: 'active';
 }
 
 export class CreateBrandDto {
@@ -210,6 +226,10 @@ export class CreateCategoryDto {
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   @MaxLength(180)
   slug?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  slugCustom?: boolean;
 
   @IsOptional()
   @IsUUID()
@@ -443,10 +463,10 @@ export class CreateProductDto {
   @IsUUID()
   brandId!: string;
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(120)
-  reference!: string;
+  reference?: string;
 
   @IsString()
   @MaxLength(10_000)

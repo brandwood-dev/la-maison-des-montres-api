@@ -8,16 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
-import {
-  and,
-  asc,
-  count,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  or,
-} from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants';
 import type { AppDatabase } from '../database/database.types';
 import { EmailService } from '../email/email.service';
@@ -142,6 +133,7 @@ export type AdminOrderResponse = {
   idempotencyKey: string;
   createdAt: string;
   updatedAt: string;
+  deliveredAt?: string;
 };
 
 @Injectable()
@@ -288,7 +280,10 @@ export class OrdersService {
       .select({ value: count() })
       .from(orders)
       .where(where);
-    const itemRows = await this.itemsForOrders(database, rows.map((row) => row.id));
+    const itemRows = await this.itemsForOrders(
+      database,
+      rows.map((row) => row.id),
+    );
     return {
       data: rows.map((row) =>
         this.toAdminResponse({ order: row, items: itemRows.get(row.id) ?? [] }),
@@ -367,21 +362,33 @@ export class OrdersService {
     }
     const [updated] = await database
       .update(orders)
-      .set({ status: nextStatus, updatedAt: new Date() })
+      .set({
+        status: nextStatus,
+        deliveredAt:
+          nextStatus === 'delivered'
+            ? new Date()
+            : current.deliveredAt
+              ? new Date(current.deliveredAt)
+              : null,
+        updatedAt: new Date(),
+      })
       .where(eq(orders.id, id))
       .returning();
     if (!updated) throw new NotFoundException('Order not found');
-    return this.toAdminResponse({ order: updated, items: current.items.map((item) => ({
-      id: item.id,
-      orderId: updated.id,
-      productId: item.productId,
-      name: item.name,
-      reference: item.reference,
-      imageUrl: item.imageUrl ?? null,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      lineTotal: item.lineTotal,
-    })) });
+    return this.toAdminResponse({
+      order: updated,
+      items: current.items.map((item) => ({
+        id: item.id,
+        orderId: updated.id,
+        productId: item.productId,
+        name: item.name,
+        reference: item.reference,
+        imageUrl: item.imageUrl ?? null,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: item.lineTotal,
+      })),
+    });
   }
 
   private normalizeItems(items: OrderItemDto[]): OrderItemDto[] {
@@ -540,13 +547,17 @@ export class OrdersService {
       idempotencyKey: stored.order.idempotencyKey,
       createdAt: stored.order.createdAt.toISOString(),
       updatedAt: stored.order.updatedAt.toISOString(),
+      deliveredAt: stored.order.deliveredAt?.toISOString(),
     };
   }
 
   private allowedStatusTransitions(
     status: AdminOrderResponse['status'],
   ): AdminOrderResponse['status'][] {
-    const transitions: Record<AdminOrderResponse['status'], AdminOrderResponse['status'][]> = {
+    const transitions: Record<
+      AdminOrderResponse['status'],
+      AdminOrderResponse['status'][]
+    > = {
       new: ['to_confirm', 'cancelled'],
       to_confirm: ['confirmed', 'cancelled'],
       confirmed: ['preparing', 'cancelled'],

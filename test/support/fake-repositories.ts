@@ -110,6 +110,7 @@ export class FakeCatalogRepository implements CatalogRepository {
   readonly attributes: AttributeRow[] = [];
   readonly values: AttributeValueRow[] = [];
   readonly products: ProductDetail[] = [];
+  private referenceSequence = 0;
 
   listBrands(input: PaginationInput): Promise<Page<BrandRow>> {
     return Promise.resolve(this.list(this.brands, input));
@@ -145,6 +146,12 @@ export class FakeCatalogRepository implements CatalogRepository {
   findCategory(id: string): Promise<CategoryRow | null> {
     return Promise.resolve(
       this.categories.find((item) => item.id === id) ?? null,
+    );
+  }
+
+  findCategoryBySlug(slug: string): Promise<CategoryRow | null> {
+    return Promise.resolve(
+      this.categories.find((item) => item.slug === slug) ?? null,
     );
   }
 
@@ -235,7 +242,14 @@ export class FakeCatalogRepository implements CatalogRepository {
         (!input.status || item.status === input.status) &&
         (!input.availableOnly || item.stock > 0) &&
         (input.minPrice === undefined || item.price >= input.minPrice) &&
-        (input.maxPrice === undefined || item.price <= input.maxPrice),
+        (input.maxPrice === undefined || item.price <= input.maxPrice) &&
+        (input.promotion !== 'active' ||
+          (item.promotionActive &&
+            item.oldPrice !== null &&
+            item.oldPrice > item.price &&
+            item.promotionEndsAt !== null &&
+            (!item.promotionStartsAt || item.promotionStartsAt <= new Date()) &&
+            item.promotionEndsAt > new Date())),
     );
     return Promise.resolve(this.list(filtered, input));
   }
@@ -250,6 +264,19 @@ export class FakeCatalogRepository implements CatalogRepository {
     return Promise.resolve(
       this.products.find((item) => item.seoSlug === slug) ?? null,
     );
+  }
+
+  findProductByReference(reference: string): Promise<ProductDetail | null> {
+    return Promise.resolve(
+      this.products.find(
+        (item) => item.reference.toLowerCase() === reference.toLowerCase(),
+      ) ?? null,
+    );
+  }
+
+  nextProductReferenceSequence(): Promise<number> {
+    this.referenceSequence += 1;
+    return Promise.resolve(this.referenceSequence);
   }
 
   createProduct(input: ProductWrite): Promise<ProductDetail> {
@@ -270,6 +297,9 @@ export class FakeCatalogRepository implements CatalogRepository {
       seoSlug: input.seoSlug,
       seoTitle: input.seoTitle ?? null,
       seoDescription: input.seoDescription ?? null,
+      seoSlugCustom: input.seoSlugCustom ?? false,
+      seoTitleCustom: input.seoTitleCustom ?? false,
+      seoDescriptionCustom: input.seoDescriptionCustom ?? false,
       createdAt: now,
       updatedAt: now,
       categoryIds: [...input.categoryIds],

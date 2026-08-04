@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -105,9 +106,18 @@ export class CatalogService {
 
   async createCategory(input: CreateCategoryDto) {
     if (input.parentId) await this.categoryRow(input.parentId);
+    const slugCustom = input.slugCustom ?? Boolean(input.slug?.trim());
+    const slug = await this.uniqueCategorySlug(
+      slugCustom
+        ? input.slug?.trim() || this.slugify(input.name)
+        : this.slugify(input.name),
+      undefined,
+      slugCustom,
+    );
     const row = await this.repository.createCategory({
       name: input.name.trim(),
-      slug: input.slug ?? this.slugify(input.name),
+      slug,
+      slugCustom,
       parentId: input.parentId ?? null,
       description: input.description ?? null,
       imageUrl: input.imageUrl ?? null,
@@ -120,18 +130,27 @@ export class CatalogService {
   }
 
   async updateCategory(id: string, input: UpdateCategoryDto) {
-    await this.categoryRow(id);
+    const current = await this.categoryRow(id);
     if (input.parentId === id) {
       throw new BadRequestException('A category cannot be its own parent');
     }
     if (input.parentId) await this.assertNoCategoryCycle(id, input.parentId);
+    const nextName = input.name?.trim() || current.name;
+    const slugCustom =
+      input.slugCustom !== undefined
+        ? input.slugCustom
+        : input.slug !== undefined
+          ? Boolean(input.slug.trim())
+          : current.slugCustom;
+    const slug = await this.uniqueCategorySlug(
+      slugCustom ? input.slug?.trim() || current.slug : this.slugify(nextName),
+      id,
+      slugCustom,
+    );
     const row = await this.repository.updateCategory(id, {
-      ...(input.name ? { name: input.name.trim() } : {}),
-      ...(input.slug
-        ? { slug: input.slug }
-        : input.name
-          ? { slug: this.slugify(input.name) }
-          : {}),
+      ...(input.name ? { name: nextName } : {}),
+      slug,
+      slugCustom,
       ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
       ...(input.description !== undefined
         ? { description: input.description }
@@ -321,6 +340,7 @@ export class CatalogService {
       categoryId: input.categoryId,
       minPrice: input.minPrice,
       maxPrice: input.maxPrice,
+      promotion: input.promotion,
     });
     const data = [];
     for (const item of page.data) {
@@ -341,7 +361,7 @@ export class CatalogService {
   }
 
   async createProduct(input: CreateProductDto) {
-    const write = this.productInput(input);
+    const write = await this.productInput(input);
     this.validatePromotion(write);
     await this.validateProduct(write);
     return this.productResponse(await this.repository.createProduct(write));
@@ -349,37 +369,62 @@ export class CatalogService {
 
   async updateProduct(id: string, input: UpdateProductDto) {
     const current = await this.productRow(id);
-    const patch = this.productPatch(input);
+    const brandId = input.brandId ?? current.brandId;
+    const name = input.name?.trim() || current.name;
+    const categoryIds = input.categoryIds ?? current.categoryIds;
+    const brand = await this.brandRow(brandId);
+    const categories = await Promise.all(
+      categoryIds.map((categoryId) => this.categoryRow(categoryId)),
+    );
+    const seo = await this.resolveProductSeo({
+      name,
+      brandName: brand.name,
+      categoryName: categories[0]?.name,
+      input: input.seo,
+      current,
+    });
+    const reference =
+      input.reference?.trim() ||
+      current.reference ||
+      (await this.generateProductReference(brand.slug, categories[0]?.slug));
+    await this.assertReferenceAvailable(reference, id);
     const merged: ProductWrite = {
-      brandId: patch.brandId ?? current.brandId,
-      name: patch.name ?? current.name,
-      reference: patch.reference ?? current.reference,
-      description: patch.description ?? current.description,
-      price: patch.price ?? current.price,
+      brandId,
+      name,
+      reference,
+      description:
+        input.description !== undefined
+          ? input.description
+          : current.description,
+      price: input.price ?? current.price,
       oldPrice:
-        patch.oldPrice !== undefined ? patch.oldPrice : current.oldPrice,
-      stock: patch.stock ?? current.stock,
-      promotionActive: patch.promotionActive ?? current.promotionActive,
+        input.oldPrice !== undefined ? input.oldPrice : current.oldPrice,
+      stock: input.stock ?? current.stock,
+      promotionActive: input.promotion?.active ?? current.promotionActive,
       promotionStartsAt:
-        patch.promotionStartsAt !== undefined
-          ? patch.promotionStartsAt
+        input.promotion?.startsAt !== undefined
+          ? input.promotion.startsAt
+            ? new Date(input.promotion.startsAt)
+            : null
           : current.promotionStartsAt,
       promotionEndsAt:
-        patch.promotionEndsAt !== undefined
-          ? patch.promotionEndsAt
+        input.promotion?.endsAt !== undefined
+          ? input.promotion.endsAt
+            ? new Date(input.promotion.endsAt)
+            : null
           : current.promotionEndsAt,
-      status: patch.status ?? current.status,
-      seoSlug: patch.seoSlug ?? current.seoSlug,
-      seoTitle:
-        patch.seoTitle !== undefined ? patch.seoTitle : current.seoTitle,
-      seoDescription:
-        patch.seoDescription !== undefined
-          ? patch.seoDescription
-          : current.seoDescription,
-      categoryIds: patch.categoryIds ?? current.categoryIds,
-      attributes: patch.attributes ?? current.attributes,
+      status: input.status ?? current.status,
+      ...seo,
+      categoryIds,
+      attributes: input.attributes ?? current.attributes,
       images:
-        patch.images ??
+        input.images?.map((image) => ({
+          url: image.url,
+          alt: image.alt,
+          mediaProvider: image.mediaProvider,
+          mediaKey: image.mediaKey,
+          sortOrder: image.order ?? 0,
+        })) ??
         current.images.map((image) => ({
           url: image.url,
           alt: image.alt,
@@ -390,7 +435,7 @@ export class CatalogService {
     };
     this.validatePromotion(merged);
     await this.validateProduct(merged);
-    const updated = await this.repository.updateProduct(id, patch);
+    const updated = await this.repository.updateProduct(id, merged);
     return this.productResponse(this.require(updated, 'Product'));
   }
 
@@ -428,11 +473,25 @@ export class CatalogService {
     }
   }
 
-  private productInput(input: CreateProductDto): ProductWrite {
+  private async productInput(input: CreateProductDto): Promise<ProductWrite> {
+    const brand = await this.brandRow(input.brandId);
+    const categories = await Promise.all(
+      input.categoryIds.map((categoryId) => this.categoryRow(categoryId)),
+    );
+    const seo = await this.resolveProductSeo({
+      name: input.name.trim(),
+      brandName: brand.name,
+      categoryName: categories[0]?.name,
+      input: input.seo,
+    });
+    const reference =
+      input.reference?.trim() ||
+      (await this.generateProductReference(brand.slug, categories[0]?.slug));
+    await this.assertReferenceAvailable(reference);
     return {
       brandId: input.brandId,
-      name: input.name,
-      reference: input.reference,
+      name: input.name.trim(),
+      reference,
       description: input.description,
       price: input.price,
       oldPrice: input.oldPrice ?? null,
@@ -445,9 +504,7 @@ export class CatalogService {
         ? new Date(input.promotion.endsAt)
         : null,
       status: input.status ?? 'draft',
-      seoSlug: input.seo?.slug ?? this.slugify(input.name),
-      seoTitle: input.seo?.title ?? null,
-      seoDescription: input.seo?.description ?? null,
+      ...seo,
       categoryIds: input.categoryIds,
       attributes: input.attributes,
       images: input.images.map((image) => ({
@@ -458,52 +515,6 @@ export class CatalogService {
         sortOrder: image.order ?? 0,
       })),
     } satisfies ProductWrite;
-  }
-
-  private productPatch(input: UpdateProductDto): Partial<ProductWrite> {
-    return {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.brandId !== undefined ? { brandId: input.brandId } : {}),
-      ...(input.reference !== undefined ? { reference: input.reference } : {}),
-      ...(input.description !== undefined
-        ? { description: input.description }
-        : {}),
-      ...(input.price !== undefined ? { price: input.price } : {}),
-      ...(input.oldPrice !== undefined ? { oldPrice: input.oldPrice } : {}),
-      ...(input.stock !== undefined ? { stock: input.stock } : {}),
-      ...(input.promotion
-        ? {
-            promotionActive: input.promotion.active,
-            promotionStartsAt: input.promotion.startsAt
-              ? new Date(input.promotion.startsAt)
-              : null,
-            promotionEndsAt: input.promotion.endsAt
-              ? new Date(input.promotion.endsAt)
-              : null,
-          }
-        : {}),
-      ...(input.status !== undefined ? { status: input.status } : {}),
-      ...(input.seo
-        ? {
-            ...(input.seo.slug ? { seoSlug: input.seo.slug } : {}),
-            seoTitle: input.seo.title ?? null,
-            seoDescription: input.seo.description ?? null,
-          }
-        : {}),
-      ...(input.categoryIds ? { categoryIds: input.categoryIds } : {}),
-      ...(input.attributes ? { attributes: input.attributes } : {}),
-      ...(input.images
-        ? {
-            images: input.images.map((image) => ({
-              url: image.url,
-              alt: image.alt ?? null,
-              mediaProvider: image.mediaProvider ?? null,
-              mediaKey: image.mediaKey ?? null,
-              sortOrder: image.order ?? 0,
-            })),
-          }
-        : {}),
-    };
   }
 
   private brandResponse(row: BrandRow) {
@@ -526,6 +537,7 @@ export class CatalogService {
       id: row.id,
       name: row.name,
       slug: row.slug,
+      slugCustom: row.slugCustom,
       description: row.description ?? undefined,
       imageUrl: row.imageUrl ?? undefined,
       parentId: row.parentId,
@@ -605,6 +617,9 @@ export class CatalogService {
         slug: product.seoSlug,
         title: product.seoTitle ?? undefined,
         description: product.seoDescription ?? undefined,
+        slugCustom: product.seoSlugCustom,
+        titleCustom: product.seoTitleCustom,
+        descriptionCustom: product.seoDescriptionCustom,
       },
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
@@ -706,6 +721,177 @@ export class CatalogService {
       (!product.promotionStartsAt || product.promotionStartsAt <= now) &&
       product.promotionEndsAt > now,
     );
+  }
+
+  private async resolveProductSeo(input: {
+    name: string;
+    brandName: string;
+    categoryName?: string;
+    input?: CreateProductDto['seo'];
+    current?: ProductDetail;
+  }): Promise<
+    Pick<
+      ProductWrite,
+      | 'seoSlug'
+      | 'seoTitle'
+      | 'seoDescription'
+      | 'seoSlugCustom'
+      | 'seoTitleCustom'
+      | 'seoDescriptionCustom'
+    >
+  > {
+    const current = input.current;
+    const seoInput = input.input;
+    const slugCustom =
+      seoInput?.slugCustom ??
+      (seoInput?.slug !== undefined
+        ? Boolean(seoInput.slug.trim())
+        : (current?.seoSlugCustom ?? false));
+    const slugBase = slugCustom
+      ? seoInput?.slug?.trim() || current?.seoSlug || this.slugify(input.name)
+      : this.slugify(input.name);
+    const seoSlug = await this.uniqueProductSlug(
+      slugBase,
+      current?.id,
+      slugCustom,
+    );
+
+    const titleCustom =
+      seoInput?.titleCustom ??
+      (seoInput?.title !== undefined
+        ? Boolean(seoInput.title.trim())
+        : (current?.seoTitleCustom ?? false));
+    const descriptionCustom =
+      seoInput?.descriptionCustom ??
+      (seoInput?.description !== undefined
+        ? Boolean(seoInput.description.trim())
+        : (current?.seoDescriptionCustom ?? false));
+    const seoTitle = titleCustom
+      ? seoInput?.title?.trim() || current?.seoTitle || null
+      : this.truncateAtWord(
+          `${input.name} – ${input.brandName} | La Maison des Montres`,
+          255,
+        );
+    const generatedDescription = this.generateMetaDescription(input);
+    const seoDescription = descriptionCustom
+      ? seoInput?.description?.trim() || current?.seoDescription || null
+      : generatedDescription;
+
+    return {
+      seoSlug,
+      seoTitle,
+      seoDescription,
+      seoSlugCustom: slugCustom,
+      seoTitleCustom: titleCustom,
+      seoDescriptionCustom: descriptionCustom,
+    };
+  }
+
+  private generateMetaDescription(input: {
+    name: string;
+    brandName: string;
+    categoryName?: string;
+  }): string {
+    const category = input.categoryName
+      ? ` de catégorie ${input.categoryName}`
+      : '';
+    return this.truncateAtWord(
+      `Découvrez la montre ${input.name} de ${input.brandName}${category} chez La Maison des Montres. Livraison en Tunisie et paiement à la livraison.`,
+      160,
+    );
+  }
+
+  private truncateAtWord(value: string, maxLength: number): string {
+    const normalized = value.trim().replace(/\s+/g, ' ');
+    if (normalized.length <= maxLength) return normalized;
+    const truncated = normalized.slice(0, maxLength - 1).trimEnd();
+    const lastSpace = truncated.lastIndexOf(' ');
+    return `${(lastSpace > 40 ? truncated.slice(0, lastSpace) : truncated).trim()}…`;
+  }
+
+  private async uniqueProductSlug(
+    value: string,
+    excludeId: string | undefined,
+    custom: boolean,
+  ): Promise<string> {
+    const base = this.slugify(value);
+    let candidate = base;
+    for (let suffix = 1; suffix <= 1000; suffix += 1) {
+      const existing = await this.repository.findProductBySlug(candidate);
+      if (!existing || existing.id === excludeId) return candidate;
+      if (custom) {
+        throw new ConflictException({
+          code: 'SLUG_CONFLICT',
+          message: `The slug "${base}" is already in use`,
+        });
+      }
+      candidate = `${base}-${suffix + 1}`;
+    }
+    throw new ConflictException({
+      code: 'SLUG_CONFLICT',
+      message: 'Unable to generate a unique slug',
+    });
+  }
+
+  private async uniqueCategorySlug(
+    value: string,
+    excludeId: string | undefined,
+    custom: boolean,
+  ): Promise<string> {
+    const base = this.slugify(value);
+    let candidate = base;
+    for (let suffix = 1; suffix <= 1000; suffix += 1) {
+      const existing = await this.repository.findCategoryBySlug(candidate);
+      if (!existing || existing.id === excludeId) return candidate;
+      if (custom) {
+        throw new ConflictException({
+          code: 'SLUG_CONFLICT',
+          message: `The slug "${base}" is already in use`,
+        });
+      }
+      candidate = `${base}-${suffix + 1}`;
+    }
+    throw new ConflictException({
+      code: 'SLUG_CONFLICT',
+      message: 'Unable to generate a unique slug',
+    });
+  }
+
+  private async generateProductReference(
+    brandSlug: string,
+    categorySlug?: string,
+  ): Promise<string> {
+    const sequence = await this.repository.nextProductReferenceSequence();
+    const brandCode = this.referenceCode(brandSlug, 'GEN');
+    const categoryCode = this.referenceCode(categorySlug ?? 'GEN', 'GEN');
+    return `LMM-${brandCode}-${categoryCode}-${sequence
+      .toString(36)
+      .toUpperCase()
+      .padStart(6, '0')}`;
+  }
+
+  private async assertReferenceAvailable(
+    reference: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const existing = await this.repository.findProductByReference(reference);
+    if (existing && existing.id !== excludeId) {
+      throw new ConflictException({
+        code: 'REFERENCE_CONFLICT',
+        message: `The reference "${reference}" is already in use`,
+      });
+    }
+  }
+
+  private referenceCode(value: string, fallback: string): string {
+    const code = value
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/œ/gi, 'oe')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '')
+      .slice(0, 6);
+    return code || fallback;
   }
 
   private validatePromotion(product: ProductWrite): void {
@@ -815,8 +1001,9 @@ export class CatalogService {
 
   private slugify(value: string): string {
     const slug = value
-      .normalize('NFD')
+      .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, '')
+      .replace(/œ/gi, 'oe')
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, '-')

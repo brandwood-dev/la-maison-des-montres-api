@@ -55,6 +55,7 @@ export interface ProductListInput extends PaginationInput {
   availableOnly?: boolean;
   minPrice?: number;
   maxPrice?: number;
+  promotion?: 'active';
 }
 
 export interface Page<T> {
@@ -79,6 +80,9 @@ export interface ProductWrite {
   seoSlug: string;
   seoTitle?: string | null;
   seoDescription?: string | null;
+  seoSlugCustom?: boolean;
+  seoTitleCustom?: boolean;
+  seoDescriptionCustom?: boolean;
   categoryIds: string[];
   attributes: { attributeId: string; valueIds: string[] }[];
   images: {
@@ -110,6 +114,7 @@ export interface CatalogRepository {
 
   listCategories(input: PaginationInput): Promise<Page<CategoryRow>>;
   findCategory(id: string): Promise<CategoryRow | null>;
+  findCategoryBySlug(slug: string): Promise<CategoryRow | null>;
   createCategory(
     input: Omit<CategoryRow, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<CategoryRow>;
@@ -146,6 +151,8 @@ export interface CatalogRepository {
   listProducts(input: ProductListInput): Promise<Page<ProductDetail>>;
   findProduct(id: string): Promise<ProductDetail | null>;
   findProductBySlug(slug: string): Promise<ProductDetail | null>;
+  findProductByReference(reference: string): Promise<ProductDetail | null>;
+  nextProductReferenceSequence(): Promise<number>;
   createProduct(input: ProductWrite): Promise<ProductDetail>;
   updateProduct(
     id: string,
@@ -232,6 +239,10 @@ export class DrizzleCatalogRepository implements CatalogRepository {
 
   findCategory(id: string): Promise<CategoryRow | null> {
     return this.findOne(categories, categories.id, id);
+  }
+
+  findCategoryBySlug(slug: string): Promise<CategoryRow | null> {
+    return this.findOne(categories, categories.slug, slug);
   }
 
   async createCategory(
@@ -379,6 +390,17 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       conditions.push(gte(products.price, input.minPrice));
     if (input.maxPrice !== undefined)
       conditions.push(lte(products.price, input.maxPrice));
+    if (input.promotion === 'active') {
+      const now = sql`now()`;
+      conditions.push(
+        sql`${products.promotionActive} = true
+          and ${products.oldPrice} is not null
+          and ${products.oldPrice} > ${products.price}
+          and (${products.promotionStartsAt} is null or ${products.promotionStartsAt} <= ${now})
+          and ${products.promotionEndsAt} is not null
+          and ${products.promotionEndsAt} > ${now}`,
+      );
+    }
     const where = conditions.length ? and(...conditions) : undefined;
     const orderColumn =
       input.sortBy === 'price'
@@ -421,6 +443,30 @@ export class DrizzleCatalogRepository implements CatalogRepository {
     return rows[0] ? (await this.withRelations(rows))[0] : null;
   }
 
+  async findProductByReference(
+    reference: string,
+  ): Promise<ProductDetail | null> {
+    const rows = await this.getDatabase()
+      .select()
+      .from(products)
+      .where(sql`lower(${products.reference}) = lower(${reference})`)
+      .limit(1);
+    return rows[0] ? (await this.withRelations(rows))[0] : null;
+  }
+
+  async nextProductReferenceSequence(): Promise<number> {
+    const rows = await this.getDatabase().execute(
+      sql`select nextval('app.product_reference_seq') as value`,
+    );
+    const value = Number(
+      (rows as unknown as Array<{ value: string }>)[0]?.value,
+    );
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new ServiceUnavailableException('Reference sequence unavailable');
+    }
+    return value;
+  }
+
   async createProduct(input: ProductWrite): Promise<ProductDetail> {
     const database = this.getDatabase();
     const product = await database.transaction(async (tx) => {
@@ -441,6 +487,9 @@ export class DrizzleCatalogRepository implements CatalogRepository {
           seoSlug: input.seoSlug,
           seoTitle: input.seoTitle,
           seoDescription: input.seoDescription,
+          seoSlugCustom: input.seoSlugCustom,
+          seoTitleCustom: input.seoTitleCustom,
+          seoDescriptionCustom: input.seoDescriptionCustom,
         })
         .returning();
       await this.replaceProductRelations(tx, row.id, input);
@@ -599,6 +648,9 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       seoSlug: input.seoSlug,
       seoTitle: input.seoTitle,
       seoDescription: input.seoDescription,
+      seoSlugCustom: input.seoSlugCustom,
+      seoTitleCustom: input.seoTitleCustom,
+      seoDescriptionCustom: input.seoDescriptionCustom,
     };
   }
 
