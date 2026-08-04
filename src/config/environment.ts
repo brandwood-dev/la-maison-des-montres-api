@@ -30,7 +30,7 @@ export const environmentSchema = Joi.object({
   ADMIN_PUBLIC_URL: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()
-      .uri({ scheme: ['http', 'https'] })
+      .uri({ scheme: ['https'] })
       .required(),
     otherwise: Joi.string()
       .uri({ scheme: ['http', 'https'] })
