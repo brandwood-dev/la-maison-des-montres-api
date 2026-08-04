@@ -58,42 +58,45 @@ export class EmailService {
       'BREVO_SENDER_NAME',
       'La Maison des Montres',
     );
-    const lines = order.items.map(
+    const customerName = `${order.shipping.firstName} ${order.shipping.lastName}`;
+    const customerEmail = order.shipping.email ?? 'Non renseigné';
+    const postalCode = order.shipping.postalCode ?? 'Non renseigné';
+    const note = order.shipping.note ?? 'Aucune';
+    const itemLines = order.items.map(
       (item) =>
         `${item.quantity} × ${item.name} (${item.reference}) — ${formatTnd(item.lineMillimes)}`,
     );
     const text = [
       `Nouvelle commande ${order.reference}`,
+      `Date : ${formatDate(order.createdAt)}`,
       '',
-      `Client : ${order.shipping.firstName} ${order.shipping.lastName}`,
+      `Client : ${customerName}`,
       `Téléphone : ${order.shipping.phone}`,
-      `Livraison : ${order.shipping.governorate} — ${order.shipping.city}`,
+      `E-mail : ${customerEmail}`,
+      `Gouvernorat : ${order.shipping.governorate}`,
+      `Ville / délégation : ${order.shipping.city}`,
       `Adresse : ${order.shipping.address}`,
+      `Code postal : ${postalCode}`,
+      `Note de livraison : ${note}`,
       '',
       'Articles :',
-      ...lines,
+      ...itemLines,
       '',
       `Sous-total : ${formatTnd(order.totals.subtotalMillimes)}`,
       `Livraison : ${formatTnd(order.totals.shippingMillimes)}`,
       `Total : ${formatTnd(order.totals.totalMillimes)}`,
       `Paiement : ${order.paymentMethod.toUpperCase()}`,
     ].join('\n');
-    const htmlLines = lines
-      .map((line) => `<li>${escapeHtml(line)}</li>`)
-      .join('');
-    const html = `
-      <h1>Nouvelle commande ${escapeHtml(order.reference)}</h1>
-      <p><strong>Client :</strong> ${escapeHtml(order.shipping.firstName)} ${escapeHtml(order.shipping.lastName)}</p>
-      <p><strong>Téléphone :</strong> ${escapeHtml(order.shipping.phone)}</p>
-      <p><strong>Livraison :</strong> ${escapeHtml(order.shipping.governorate)} — ${escapeHtml(order.shipping.city)}</p>
-      <p><strong>Adresse :</strong> ${escapeHtml(order.shipping.address)}</p>
-      <h2>Articles</h2>
-      <ul>${htmlLines}</ul>
-      <p><strong>Sous-total :</strong> ${escapeHtml(formatTnd(order.totals.subtotalMillimes))}<br />
-      <strong>Livraison :</strong> ${escapeHtml(formatTnd(order.totals.shippingMillimes))}<br />
-      <strong>Total :</strong> ${escapeHtml(formatTnd(order.totals.totalMillimes))}</p>
-      <p><strong>Paiement :</strong> ${escapeHtml(order.paymentMethod.toUpperCase())}</p>
-    `;
+    const itemRows = order.items.map((item) => this.itemRow(item)).join('');
+    const html = this.html(
+      order,
+      customerName,
+      customerEmail,
+      postalCode,
+      note,
+      itemRows,
+    );
+
     return {
       sender: { email: senderEmail, name: senderName },
       to: [{ email: recipientEmail }],
@@ -102,10 +105,90 @@ export class EmailService {
       htmlContent: html,
     };
   }
+
+  private itemRow(item: PublicOrderResponse['items'][number]): string {
+    const imageUrl = safeImageUrl(item.imageUrl);
+    const image = imageUrl
+      ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.imageAlt)}" width="64" height="64" style="display:block;width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #eae8e0;" />`
+      : '<span style="display:block;width:64px;height:64px;border-radius:8px;background:#f4f3ed;border:1px solid #eae8e0;"></span>';
+    return `<tr>
+      <td style="padding:12px 0;border-bottom:1px solid #eae8e0;vertical-align:middle;">${image}</td>
+      <td style="padding:12px;border-bottom:1px solid #eae8e0;vertical-align:middle;color:#1c1b1b;"><strong style="font-size:14px;">${escapeHtml(item.name)}</strong><br /><span style="font-size:12px;color:#6b6a68;">${escapeHtml(item.reference)} · ${item.quantity} × ${escapeHtml(formatTnd(item.unitMillimes))}</span></td>
+      <td style="padding:12px 0;border-bottom:1px solid #eae8e0;text-align:right;white-space:nowrap;vertical-align:middle;font-weight:600;color:#1c1b1b;">${escapeHtml(formatTnd(item.lineMillimes))}</td>
+    </tr>`;
+  }
+
+  private html(
+    order: PublicOrderResponse,
+    customerName: string,
+    customerEmail: string,
+    postalCode: string,
+    note: string,
+    itemRows: string,
+  ): string {
+    const totalRows = [
+      totalRow('Sous-total', formatTnd(order.totals.subtotalMillimes)),
+      totalRow('Livraison', formatTnd(order.totals.shippingMillimes)),
+    ].join('');
+    const detailRows = [
+      detailRow('Nom', customerName),
+      detailRow('Téléphone', order.shipping.phone),
+      detailRow('E-mail', customerEmail),
+      sectionRow('Livraison'),
+      detailRow('Gouvernorat', order.shipping.governorate),
+      detailRow('Ville / délégation', order.shipping.city),
+      detailRow('Adresse', order.shipping.address),
+      detailRow('Code postal', postalCode),
+      detailRow('Note de livraison', note),
+    ].join('');
+    return `<!doctype html>
+<html lang="fr">
+  <body style="margin:0;padding:24px 12px;background:#f4f3ed;color:#1c1b1b;font-family:Arial,Helvetica,sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;margin:0 auto;background:#feffff;border:1px solid #eae8e0;border-radius:14px;overflow:hidden;">
+      <tr><td style="height:5px;background:#c89d54;font-size:0;line-height:0;">&nbsp;</td></tr>
+      <tr><td style="padding:24px 28px 18px;"><p style="margin:0 0 6px;font-size:12px;letter-spacing:1.8px;text-transform:uppercase;color:#6b6a68;">La Maison des Montres</p><h1 style="margin:0;font-size:24px;line-height:1.2;font-weight:700;color:#1c1b1b;">Nouvelle commande</h1><p style="margin:8px 0 0;font-size:14px;color:#6b6a68;">Référence <strong style="color:#1c1b1b;">${escapeHtml(order.reference)}</strong> · ${escapeHtml(formatDate(order.createdAt))}</p></td></tr>
+      <tr><td style="padding:0 28px 22px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">${detailRows}</table></td></tr>
+      <tr><td style="padding:0 28px 22px;"><p style="margin:0 0 8px;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#6b6a68;">Articles</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">${itemRows}</table></td></tr>
+      <tr><td style="padding:0 28px 28px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#f4f3ed;border-radius:10px;">${totalRows}<tr><td style="padding:14px 16px;font-size:16px;font-weight:700;color:#1c1b1b;">Total · ${escapeHtml(order.currency)}</td><td style="padding:14px 16px;text-align:right;font-size:18px;font-weight:700;color:#1c1b1b;">${escapeHtml(formatTnd(order.totals.totalMillimes))}</td></tr></table><p style="margin:16px 0 0;font-size:13px;color:#6b6a68;">Paiement : <strong style="color:#1c1b1b;">${escapeHtml(order.paymentMethod.toUpperCase())}</strong></p></td></tr>
+      <tr><td style="padding:16px 28px;background:#1c1b1b;color:#feffff;font-size:12px;">Notification automatique · La Maison des Montres</td></tr>
+    </table>
+  </body>
+</html>`;
+  }
+}
+
+function sectionRow(label: string): string {
+  return `<tr><td colspan="2" style="padding:14px 0 8px;font-size:12px;letter-spacing:1.2px;text-transform:uppercase;color:#6b6a68;border-bottom:1px solid #eae8e0;">${escapeHtml(label)}</td></tr>`;
+}
+
+function detailRow(label: string, value: string): string {
+  return `<tr><td style="padding:8px 0;width:38%;font-size:13px;color:#6b6a68;vertical-align:top;">${escapeHtml(label)}</td><td style="padding:8px 0;font-size:13px;color:#1c1b1b;vertical-align:top;">${escapeHtml(value)}</td></tr>`;
+}
+
+function totalRow(label: string, value: string): string {
+  return `<tr><td style="padding:7px 16px;font-size:13px;color:#6b6a68;">${escapeHtml(label)}</td><td style="padding:7px 16px;text-align:right;font-size:13px;color:#1c1b1b;">${escapeHtml(value)}</td></tr>`;
 }
 
 function formatTnd(millimes: number): string {
   return `${(millimes / 1000).toFixed(3)} TND`;
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Africa/Tunis',
+  }).format(new Date(value));
+}
+
+function safeImageUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function escapeHtml(value: string): string {

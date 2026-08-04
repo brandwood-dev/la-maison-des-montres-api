@@ -66,10 +66,12 @@ export type PublicOrderResponse = {
     firstName: string;
     lastName: string;
     phone: string;
+    email: string | null;
     governorate: string;
     city: string;
     address: string;
     postalCode: string | null;
+    note: string | null;
   };
   items: Array<{
     productId: string;
@@ -588,10 +590,12 @@ export class OrdersService {
         firstName: stored.order.customerName.split(' ')[0] ?? '',
         lastName: stored.order.customerName.split(' ').slice(1).join(' '),
         phone: stored.order.customerPhone,
+        email: stored.order.customerEmail,
         governorate: stored.order.governorate,
         city: stored.order.city,
         address: stored.order.address,
         postalCode: stored.order.postalCode,
+        note: stored.order.notes,
       },
       items: itemResponses,
       totals: {
