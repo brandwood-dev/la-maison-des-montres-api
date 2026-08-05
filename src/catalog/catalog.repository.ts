@@ -98,6 +98,17 @@ export interface ProductDetail extends ProductRow {
   categoryIds: string[];
   attributes: { attributeId: string; valueIds: string[] }[];
   images: ProductImageRow[];
+  /**
+   * Optional read-model enrichment populated by the SQL repository.
+   * Keeping it optional preserves the lightweight fake repository used by
+   * unit tests and by write paths that only need the identifiers above.
+   */
+  enrichment?: {
+    brand?: BrandRow;
+    categories: CategoryRow[];
+    attributes: AttributeRow[];
+    values: AttributeValueRow[];
+  };
 }
 
 export interface CatalogRepository {
@@ -136,7 +147,12 @@ export interface CatalogRepository {
   deleteAttribute(id: string): Promise<boolean>;
 
   listAttributeValues(attributeId: string): Promise<AttributeValueRow[]>;
+  listAttributeValuesByAttributeIds?: (
+    attributeIds: string[],
+  ) => Promise<AttributeValueRow[]>;
   findAttributeValue(id: string): Promise<AttributeValueRow | null>;
+  findAttributesByIds?: (ids: string[]) => Promise<AttributeRow[]>;
+  findAttributeValuesByIds?: (ids: string[]) => Promise<AttributeValueRow[]>;
   createAttributeValue(
     input: Omit<AttributeValueRow, 'id' | 'createdAt' | 'updatedAt'>,
   ): Promise<AttributeValueRow>;
@@ -330,8 +346,39 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       .orderBy(asc(attributeValues.sortOrder), asc(attributeValues.label));
   }
 
+  async listAttributeValuesByAttributeIds(
+    attributeIds: string[],
+  ): Promise<AttributeValueRow[]> {
+    if (attributeIds.length === 0) return [];
+    return this.getDatabase()
+      .select()
+      .from(attributeValues)
+      .where(inArray(attributeValues.attributeId, attributeIds))
+      .orderBy(
+        asc(attributeValues.attributeId),
+        asc(attributeValues.sortOrder),
+        asc(attributeValues.label),
+      );
+  }
+
   findAttributeValue(id: string): Promise<AttributeValueRow | null> {
     return this.findOne(attributeValues, attributeValues.id, id);
+  }
+
+  async findAttributesByIds(ids: string[]): Promise<AttributeRow[]> {
+    if (ids.length === 0) return [];
+    return this.getDatabase()
+      .select()
+      .from(attributes)
+      .where(inArray(attributes.id, ids));
+  }
+
+  async findAttributeValuesByIds(ids: string[]): Promise<AttributeValueRow[]> {
+    if (ids.length === 0) return [];
+    return this.getDatabase()
+      .select()
+      .from(attributeValues)
+      .where(inArray(attributeValues.id, ids));
   }
 
   async createAttributeValue(
@@ -525,26 +572,59 @@ export class DrizzleCatalogRepository implements CatalogRepository {
 
     const database = this.getDatabase();
     const productIds = rows.map((row) => row.id);
-    const categoryRows = await database
-      .select({
-        productId: productCategories.productId,
-        categoryId: productCategories.categoryId,
-      })
-      .from(productCategories)
-      .where(inArray(productCategories.productId, productIds));
-    const assignmentRows = await database
-      .select({
-        productId: productAttributeValues.productId,
-        attributeId: productAttributeValues.attributeId,
-        valueId: productAttributeValues.valueId,
-      })
-      .from(productAttributeValues)
-      .where(inArray(productAttributeValues.productId, productIds));
-    const imageRows = await database
-      .select()
-      .from(productImages)
-      .where(inArray(productImages.productId, productIds))
-      .orderBy(asc(productImages.sortOrder));
+    const [categoryRows, assignmentRows, imageRows] = await Promise.all([
+      database
+        .select({
+          productId: productCategories.productId,
+          categoryId: productCategories.categoryId,
+        })
+        .from(productCategories)
+        .where(inArray(productCategories.productId, productIds)),
+      database
+        .select({
+          productId: productAttributeValues.productId,
+          attributeId: productAttributeValues.attributeId,
+          valueId: productAttributeValues.valueId,
+        })
+        .from(productAttributeValues)
+        .where(inArray(productAttributeValues.productId, productIds)),
+      database
+        .select()
+        .from(productImages)
+        .where(inArray(productImages.productId, productIds))
+        .orderBy(asc(productImages.sortOrder)),
+    ]);
+
+    const categoryIds = [...new Set(categoryRows.map((row) => row.categoryId))];
+    const attributeIds = [
+      ...new Set(assignmentRows.map((row) => row.attributeId)),
+    ];
+    const valueIds = [...new Set(assignmentRows.map((row) => row.valueId))];
+    const brandIds = [...new Set(rows.map((row) => row.brandId))];
+    const [brandRows, categoryMetadata, attributeMetadata, valueMetadata] =
+      await Promise.all([
+        brandIds.length
+          ? database.select().from(brands).where(inArray(brands.id, brandIds))
+          : Promise.resolve([]),
+        categoryIds.length
+          ? database
+              .select()
+              .from(categories)
+              .where(inArray(categories.id, categoryIds))
+          : Promise.resolve([]),
+        attributeIds.length
+          ? database
+              .select()
+              .from(attributes)
+              .where(inArray(attributes.id, attributeIds))
+          : Promise.resolve([]),
+        valueIds.length
+          ? database
+              .select()
+              .from(attributeValues)
+              .where(inArray(attributeValues.id, valueIds))
+          : Promise.resolve([]),
+      ]);
 
     const categoriesByProduct = new Map<string, string[]>();
     for (const category of categoryRows) {
@@ -571,6 +651,47 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       imagesByProduct.set(image.productId, images);
     }
 
+    const brandById = new Map(brandRows.map((row) => [row.id, row]));
+    const categoryById = new Map(categoryMetadata.map((row) => [row.id, row]));
+    const attributeById = new Map(
+      attributeMetadata.map((row) => [row.id, row]),
+    );
+    const valueById = new Map(valueMetadata.map((row) => [row.id, row]));
+    const categoriesMetadataByProduct = new Map<string, CategoryRow[]>();
+    for (const category of categoryRows) {
+      const row = categoryById.get(category.categoryId);
+      if (!row) continue;
+      const productCategories =
+        categoriesMetadataByProduct.get(category.productId) ?? [];
+      productCategories.push(row);
+      categoriesMetadataByProduct.set(category.productId, productCategories);
+    }
+    const attributesMetadataByProduct = new Map<string, AttributeRow[]>();
+    const valuesMetadataByProduct = new Map<string, AttributeValueRow[]>();
+    for (const assignment of assignmentRows) {
+      const attribute = attributeById.get(assignment.attributeId);
+      if (attribute) {
+        const productAttributes =
+          attributesMetadataByProduct.get(assignment.productId) ?? [];
+        if (!productAttributes.some((item) => item.id === attribute.id)) {
+          productAttributes.push(attribute);
+        }
+        attributesMetadataByProduct.set(
+          assignment.productId,
+          productAttributes,
+        );
+      }
+      const value = valueById.get(assignment.valueId);
+      if (value) {
+        const productValues =
+          valuesMetadataByProduct.get(assignment.productId) ?? [];
+        if (!productValues.some((item) => item.id === value.id)) {
+          productValues.push(value);
+        }
+        valuesMetadataByProduct.set(assignment.productId, productValues);
+      }
+    }
+
     return rows.map((row) => ({
       ...row,
       categoryIds: categoriesByProduct.get(row.id) ?? [],
@@ -578,6 +699,12 @@ export class DrizzleCatalogRepository implements CatalogRepository {
         ...(assignmentsByProduct.get(row.id) ?? new Map<string, string[]>()),
       ].map(([attributeId, valueIds]) => ({ attributeId, valueIds })),
       images: imagesByProduct.get(row.id) ?? [],
+      enrichment: {
+        brand: brandById.get(row.brandId),
+        categories: categoriesMetadataByProduct.get(row.id) ?? [],
+        attributes: attributesMetadataByProduct.get(row.id) ?? [],
+        values: valuesMetadataByProduct.get(row.id) ?? [],
+      },
     }));
   }
 

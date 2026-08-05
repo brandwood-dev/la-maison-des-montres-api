@@ -192,10 +192,7 @@ export class CatalogService {
 
   async listAttributes(input: ListQueryDto) {
     const page = await this.repository.listAttributes(this.pagination(input));
-    const data = [];
-    for (const row of page.data) {
-      data.push(await this.attributeResponse(row));
-    }
+    const data = await this.attributeResponses(page.data);
     return { ...page, data };
   }
 
@@ -205,10 +202,7 @@ export class CatalogService {
       active: true,
       filterable: true,
     });
-    const data = [];
-    for (const row of page.data) {
-      data.push(await this.attributeResponse(row));
-    }
+    const data = await this.attributeResponses(page.data);
     return { ...page, data };
   }
 
@@ -312,10 +306,9 @@ export class CatalogService {
       categoryId: input.categoryId,
       status: input.status,
     });
-    const data = [];
-    for (const item of page.data) {
-      data.push(await this.productResponse(item));
-    }
+    const data = await Promise.all(
+      page.data.map((item) => this.productResponse(item)),
+    );
     return { ...page, data };
   }
 
@@ -342,10 +335,9 @@ export class CatalogService {
       maxPrice: input.maxPrice,
       promotion: input.promotion,
     });
-    const data = [];
-    for (const item of page.data) {
-      data.push(await this.publicProductResponse(item));
-    }
+    const data = await Promise.all(
+      page.data.map((item) => this.publicProductResponse(item)),
+    );
     return { ...page, data };
   }
 
@@ -452,8 +444,27 @@ export class CatalogService {
     if (new Set(attributeIds).size !== attributeIds.length) {
       throw new BadRequestException('Each attribute can be assigned only once');
     }
+    const attributes = this.repository.findAttributesByIds
+      ? await this.repository.findAttributesByIds([...new Set(attributeIds)])
+      : await Promise.all(
+          [...new Set(attributeIds)].map((id) => this.attributeRow(id)),
+        );
+    const valueIds = [
+      ...new Set(input.attributes.flatMap((assignment) => assignment.valueIds)),
+    ];
+    const values = this.repository.findAttributeValuesByIds
+      ? await this.repository.findAttributeValuesByIds(valueIds)
+      : await Promise.all(valueIds.map((id) => this.attributeValueRow(id)));
+    const attributeById = new Map(
+      attributes.map((attribute) => [attribute.id, attribute]),
+    );
+    const valueById = new Map(values.map((value) => [value.id, value]));
+
     for (const assignment of input.attributes) {
-      const attribute = await this.attributeRow(assignment.attributeId);
+      const attribute = attributeById.get(assignment.attributeId);
+      if (!attribute) {
+        throw new NotFoundException('Attribute not found');
+      }
       if (
         attribute.type !== 'multiselect' &&
         assignment.valueIds.length !== 1
@@ -463,7 +474,10 @@ export class CatalogService {
         );
       }
       for (const valueId of assignment.valueIds) {
-        const value = await this.attributeValueRow(valueId);
+        const value = valueById.get(valueId);
+        if (!value) {
+          throw new NotFoundException('Attribute value not found');
+        }
         if (value.attributeId !== attribute.id) {
           throw new BadRequestException(
             `Value ${valueId} does not belong to attribute ${attribute.slug}`,
@@ -550,8 +564,36 @@ export class CatalogService {
     };
   }
 
-  private async attributeResponse(row: AttributeRow) {
-    const values = await this.repository.listAttributeValues(row.id);
+  private async attributeResponses(rows: AttributeRow[]) {
+    const values = this.repository.listAttributeValuesByAttributeIds
+      ? await this.repository.listAttributeValuesByAttributeIds(
+          rows.map((row) => row.id),
+        )
+      : [];
+    const valuesByAttribute = new Map<string, AttributeValueRow[]>();
+    for (const value of values) {
+      const attributeValues = valuesByAttribute.get(value.attributeId) ?? [];
+      attributeValues.push(value);
+      valuesByAttribute.set(value.attributeId, attributeValues);
+    }
+    return Promise.all(
+      rows.map((row) =>
+        this.attributeResponse(
+          row,
+          this.repository.listAttributeValuesByAttributeIds
+            ? (valuesByAttribute.get(row.id) ?? [])
+            : undefined,
+        ),
+      ),
+    );
+  }
+
+  private async attributeResponse(
+    row: AttributeRow,
+    prefetchedValues?: AttributeValueRow[],
+  ) {
+    const values =
+      prefetchedValues ?? (await this.repository.listAttributeValues(row.id));
     return {
       id: row.id,
       code: row.slug,
@@ -578,7 +620,8 @@ export class CatalogService {
   }
 
   private async productResponse(product: ProductDetail) {
-    const brand = await this.brandRow(product.brandId);
+    const brand =
+      product.enrichment?.brand ?? (await this.brandRow(product.brandId));
     const effective = this.isPromotionEffective(product);
     return {
       id: product.id,
@@ -629,14 +672,25 @@ export class CatalogService {
   private async publicProductResponse(product: ProductDetail) {
     const adminProduct = await this.productResponse(product);
     const publicAttributes = [];
+    const attributesById = new Map(
+      (product.enrichment?.attributes ?? []).map((attribute) => [
+        attribute.id,
+        attribute,
+      ]),
+    );
+    const valuesById = new Map(
+      (product.enrichment?.values ?? []).map((value) => [value.id, value]),
+    );
     for (const assignment of product.attributes) {
-      const attribute = await this.repository.findAttribute(
-        assignment.attributeId,
-      );
+      const attribute = product.enrichment
+        ? attributesById.get(assignment.attributeId)
+        : await this.repository.findAttribute(assignment.attributeId);
       if (!attribute || !attribute.active) continue;
       const values = [];
       for (const valueId of assignment.valueIds) {
-        const value = await this.repository.findAttributeValue(valueId);
+        const value = product.enrichment
+          ? valuesById.get(valueId)
+          : await this.repository.findAttributeValue(valueId);
         if (!value || !value.active) continue;
         values.push({
           id: value.id,
@@ -656,10 +710,11 @@ export class CatalogService {
         });
       }
     }
-    const categories = [];
-    for (const id of product.categoryIds) {
-      categories.push(await this.categoryRow(id));
-    }
+    const categories = product.enrichment
+      ? product.enrichment.categories
+      : await Promise.all(
+          product.categoryIds.map((id) => this.categoryRow(id)),
+        );
     const category = this.publicCategory(
       categories.filter((item) => item.active).map((item) => item.slug),
     );
