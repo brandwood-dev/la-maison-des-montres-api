@@ -483,6 +483,29 @@ export const testimonials = appSchema.table(
   ],
 );
 
+/**
+ * Public storefront configuration managed by the back-office.
+ *
+ * Team and delivery configuration intentionally remain in their existing
+ * modules; this table only stores identity, support and global SEO values.
+ */
+export const storeSettings = appSchema.table('store_settings', {
+  id: varchar('id', { length: 32 }).default('default').primaryKey(),
+  identityName: varchar('identity_name', { length: 160 }).notNull(),
+  identityTagline: varchar('identity_tagline', { length: 200 }),
+  identityLogoUrl: text('identity_logo_url'),
+  currency: varchar('currency', { length: 3 }).default('TND').notNull(),
+  supportEmail: varchar('support_email', { length: 320 }),
+  supportPhone: varchar('support_phone', { length: 32 }),
+  supportWhatsapp: varchar('support_whatsapp', { length: 32 }),
+  supportAddress: text('support_address'),
+  seoDefaultTitle: varchar('seo_default_title', { length: 255 }).notNull(),
+  seoDefaultDescription: varchar('seo_default_description', {
+    length: 500,
+  }).notNull(),
+  ...timestamps,
+});
+
 export const orders = appSchema.table(
   'orders',
   {
@@ -560,5 +583,6 @@ export type AttributeValueRow = typeof attributeValues.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
 export type ProductImageRow = typeof productImages.$inferSelect;
 export type TestimonialRow = typeof testimonials.$inferSelect;
+export type StoreSettingsRow = typeof storeSettings.$inferSelect;
 export type OrderRow = typeof orders.$inferSelect;
 export type OrderItemRow = typeof orderItems.$inferSelect;

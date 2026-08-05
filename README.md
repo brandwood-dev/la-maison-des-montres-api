@@ -213,6 +213,19 @@ stricts et rejettent les propriétés inconnues. Le backend valide notamment :
 
 ## Validation
 
+## Paramètres publics de la boutique
+
+La table privée app.store_settings contient uniquement l'identité, les
+coordonnées publiques et le SEO global de la boutique. Les sections Équipe et
+Livraison restent gérées par leurs modules existants.
+
+- GET /api/v1/settings — session admin avec settings.write
+- PATCH /api/v1/settings — session admin avec settings.write
+- GET /api/v1/public/settings — lecture publique limitée aux champs de la vitrine
+
+La migration 0011_sour_firebird.sql crée la ligne singleton, active RLS et
+révoque les privilèges directs anon et authenticated.
+
 ```bash
 bun run lint
 bun run format:check

@@ -23,6 +23,7 @@ import { HeroModule } from './hero/hero.module';
 import { PromoBannerModule } from './promo-banner/promo-banner.module';
 import { SearchModule } from './search/search.module';
 import { TestimonialsModule } from './testimonials/testimonials.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { TestimonialsModule } from './testimonials/testimonials.module';
     PromoBannerModule,
     SearchModule,
     TestimonialsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [
