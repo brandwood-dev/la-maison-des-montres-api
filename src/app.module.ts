@@ -20,6 +20,7 @@ import { ProfileModule } from './profile/profile.module';
 import { TeamModule } from './team/team.module';
 import { getThrottlerTracker } from './common/throttling';
 import { HeroModule } from './hero/hero.module';
+import { PromoBannerModule } from './promo-banner/promo-banner.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { HeroModule } from './hero/hero.module';
     ProfileModule,
     TeamModule,
     HeroModule,
+    PromoBannerModule,
   ],
   controllers: [AppController],
   providers: [

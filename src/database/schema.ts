@@ -250,6 +250,28 @@ export const heroSlides = appSchema.table(
   ],
 );
 
+export const promoBannerMessages = appSchema.table(
+  'promo_banner_messages',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    message: varchar('message', { length: 160 }).notNull(),
+    sortOrder: integer('sort_order').default(1).notNull(),
+    active: boolean('active').default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('promo_banner_messages_message_unique').on(
+      sql`lower(${table.message})`,
+    ),
+    index('promo_banner_messages_active_order_idx').on(
+      table.active,
+      table.sortOrder,
+    ),
+    index('promo_banner_messages_updated_idx').on(table.updatedAt),
+    check('promo_banner_messages_order_positive', sql`${table.sortOrder} >= 1`),
+  ],
+);
+
 export const attributes = appSchema.table(
   'attributes',
   {
@@ -500,6 +522,7 @@ export type AdminInvitationRow = typeof adminInvitations.$inferSelect;
 export type BrandRow = typeof brands.$inferSelect;
 export type CategoryRow = typeof categories.$inferSelect;
 export type HeroSlideRow = typeof heroSlides.$inferSelect;
+export type PromoBannerMessageRow = typeof promoBannerMessages.$inferSelect;
 export type AttributeRow = typeof attributes.$inferSelect;
 export type AttributeValueRow = typeof attributeValues.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
