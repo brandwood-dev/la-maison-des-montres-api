@@ -185,6 +185,9 @@ export class ProductResponseDto {
   @ApiProperty()
   brand!: string;
 
+  @ApiPropertyOptional({ format: 'uri' })
+  brandLogoUrl?: string;
+
   @ApiProperty()
   reference!: string;
 

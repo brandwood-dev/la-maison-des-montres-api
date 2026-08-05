@@ -172,4 +172,33 @@ describe('CatalogService', () => {
       isNew: true,
     });
   });
+
+  it('exposes the linked brand logo in the public product response', async () => {
+    const brand = await service.createBrand({
+      name: 'Logo Brand',
+      logoUrl: 'https://cdn.example.com/logo.svg',
+    });
+    await service.createProduct({
+      name: 'Logo Watch',
+      brandId: brand.id,
+      reference: 'LOGO-001',
+      description: 'Test',
+      price: 100000,
+      stock: 1,
+      status: 'published',
+      categoryIds: [],
+      images: [],
+      attributes: [],
+    });
+
+    const page = await service.listPublicProducts({
+      page: 1,
+      pageSize: 10,
+      sortOrder: 'asc',
+    });
+    expect(page.data[0]).toMatchObject({
+      brand: 'Logo Brand',
+      brandLogoUrl: 'https://cdn.example.com/logo.svg',
+    });
+  });
 });
