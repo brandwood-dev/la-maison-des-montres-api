@@ -451,6 +451,38 @@ export const productImages = appSchema.table(
   ],
 );
 
+/**
+ * Curated testimonials managed by the back-office and displayed on the
+ * storefront. Customer-submitted reviews remain a separate future module.
+ */
+export const testimonials = appSchema.table(
+  'testimonials',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    fullName: varchar('full_name', { length: 120 }).notNull(),
+    message: varchar('message', { length: 1000 }).notNull(),
+    rating: integer('rating').notNull(),
+    governorate: varchar('governorate', { length: 120 }).notNull(),
+    productId: uuid('product_id').references(() => products.id, {
+      onDelete: 'set null',
+    }),
+    productTitleSnapshot: varchar('product_title_snapshot', { length: 240 }),
+    published: boolean('published').default(false).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index('testimonials_published_order_idx').on(
+      table.published,
+      table.sortOrder,
+      table.createdAt,
+    ),
+    index('testimonials_product_idx').on(table.productId),
+    check('testimonials_rating_range', sql`${table.rating} between 1 and 5`),
+    check('testimonials_sort_order_nonnegative', sql`${table.sortOrder} >= 0`),
+  ],
+);
+
 export const orders = appSchema.table(
   'orders',
   {
@@ -527,5 +559,6 @@ export type AttributeRow = typeof attributes.$inferSelect;
 export type AttributeValueRow = typeof attributeValues.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
 export type ProductImageRow = typeof productImages.$inferSelect;
+export type TestimonialRow = typeof testimonials.$inferSelect;
 export type OrderRow = typeof orders.$inferSelect;
 export type OrderItemRow = typeof orderItems.$inferSelect;

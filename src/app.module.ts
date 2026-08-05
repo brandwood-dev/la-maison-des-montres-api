@@ -22,6 +22,7 @@ import { getThrottlerTracker } from './common/throttling';
 import { HeroModule } from './hero/hero.module';
 import { PromoBannerModule } from './promo-banner/promo-banner.module';
 import { SearchModule } from './search/search.module';
+import { TestimonialsModule } from './testimonials/testimonials.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { SearchModule } from './search/search.module';
     HeroModule,
     PromoBannerModule,
     SearchModule,
+    TestimonialsModule,
   ],
   controllers: [AppController],
   providers: [

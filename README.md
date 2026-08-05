@@ -113,6 +113,18 @@ Le bucket `product-media` est créé par la migration additive
 image produit (JPEG, PNG, WebP ou AVIF, 5 Mo maximum). L’URL publique retournée
 est ensuite enregistrée dans `product_images` lors de la sauvegarde du produit.
 
+La migration additive `0010_volatile_jubilee` ajoute les témoignages éditoriaux
+gérés par l’Admin, séparés des futurs avis soumis par les clients :
+
+- `GET|POST /api/v1/testimonials` (permission `reviews.moderate`)
+- `GET|PATCH|DELETE /api/v1/testimonials/:id` (permission `reviews.moderate`)
+- `GET /api/v1/public/testimonials` (public, publiés uniquement, maximum 12)
+
+Un témoignage conserve une note entière de 1 à 5, un nom, un gouvernorat et un
+texte. Le produit associé est facultatif ; lorsqu’il existe, l’API renvoie son
+slug et conserve aussi son titre instantané. La table privée `app.testimonials`
+active RLS et révoque les rôles `anon` et `authenticated`.
+
 Le seed de développement est explicite et désactivé par défaut :
 
 ```bash
