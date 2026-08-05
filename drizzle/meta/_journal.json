@@ -92,6 +92,13 @@
       "when": 1785930000000,
       "tag": "0012_dual_identity_logo",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785933600000,
+      "tag": "0013_shipping_settings",
+      "breakpoints": true
     }
   ]
 }

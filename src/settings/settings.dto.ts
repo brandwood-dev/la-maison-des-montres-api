@@ -1,9 +1,13 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
+  IsBoolean,
+  IsInt,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
@@ -91,6 +95,24 @@ export class UpdateSeoSettingsDto {
   defaultDescription?: string;
 }
 
+export class UpdateShippingSettingsDto {
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  feeMillimes?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  freeShippingEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100_000_000)
+  freeShippingThresholdMillimes?: number | null;
+}
+
 export class UpdateStoreSettingsDto {
   @IsOptional()
   @ValidateNested()
@@ -106,4 +128,9 @@ export class UpdateStoreSettingsDto {
   @ValidateNested()
   @Type(() => UpdateSeoSettingsDto)
   seo?: UpdateSeoSettingsDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateShippingSettingsDto)
+  shipping?: UpdateShippingSettingsDto;
 }

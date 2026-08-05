@@ -6,12 +6,15 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'node:crypto';
 import { and, asc, count, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants';
 import type { AppDatabase } from '../database/database.types';
 import { EmailService } from '../email/email.service';
+import {
+  SettingsService,
+  type StoreSettingsResponse,
+} from '../settings/settings.service';
 import {
   brands,
   orderItems,
@@ -140,8 +143,8 @@ export type AdminOrderResponse = {
 export class OrdersService {
   constructor(
     @Inject(DATABASE) private readonly database: AppDatabase | null,
-    private readonly config: ConfigService,
     private readonly email: EmailService,
+    private readonly settings: SettingsService,
   ) {}
 
   async create(input: CreateOrderDto): Promise<PublicOrderResponse> {
@@ -153,7 +156,10 @@ export class OrdersService {
     );
     if (existing) return this.toResponse(existing);
 
-    const productsById = await this.loadProducts(database, items);
+    const [productsById, settings] = await Promise.all([
+      this.loadProducts(database, items),
+      this.settings.get(),
+    ]);
     const lines = items.map((item) => {
       const product = productsById.get(item.productId);
       if (!product || product.status !== 'published' || product.stock <= 0) {
@@ -176,7 +182,7 @@ export class OrdersService {
     });
 
     const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
-    const shippingFee = this.shippingFee(subtotal);
+    const shippingFee = this.shippingFee(subtotal, settings.shipping);
     const total = subtotal + shippingFee;
     const customerName = `${input.shipping.firstName.trim()} ${input.shipping.lastName.trim()}`;
     const reference = this.generateReference();
@@ -450,14 +456,19 @@ export class OrdersService {
     return snapshots;
   }
 
-  private shippingFee(subtotal: number): number {
+  private shippingFee(
+    subtotal: number,
+    shipping: StoreSettingsResponse['shipping'],
+  ): number {
     if (subtotal === 0) return 0;
-    const threshold = this.config.get<number>(
-      'COD_FREE_SHIPPING_THRESHOLD_MILLIMES',
-      500_000,
-    );
-    if (subtotal >= threshold) return 0;
-    return this.config.get<number>('COD_SHIPPING_FEE_MILLIMES', 8_000);
+    if (shipping.freeShippingEnabled) return 0;
+    if (
+      shipping.freeShippingThresholdMillimes !== undefined &&
+      subtotal >= shipping.freeShippingThresholdMillimes
+    ) {
+      return 0;
+    }
+    return shipping.feeMillimes;
   }
 
   private generateReference(): string {

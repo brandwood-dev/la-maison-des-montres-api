@@ -28,6 +28,12 @@ export type StoreSettingsResponse = {
     defaultTitle: string;
     defaultDescription: string;
   };
+  shipping: {
+    feeMillimes: number;
+    freeShippingEnabled: boolean;
+    freeShippingThresholdMillimes?: number;
+  };
+  cod: { enabled: true };
   updatedAt: string;
 };
 
@@ -117,6 +123,22 @@ export class SettingsService {
             ),
           }
         : {}),
+      ...(input.shipping?.feeMillimes !== undefined
+        ? { shippingFeeMillimes: this.millimes(input.shipping.feeMillimes) }
+        : {}),
+      ...(input.shipping?.freeShippingEnabled !== undefined
+        ? { freeShippingEnabled: input.shipping.freeShippingEnabled }
+        : {}),
+      ...(input.shipping?.freeShippingThresholdMillimes !== undefined
+        ? {
+            freeShippingThresholdMillimes:
+              input.shipping.freeShippingThresholdMillimes === null
+                ? null
+                : this.positiveMillimes(
+                    input.shipping.freeShippingThresholdMillimes,
+                  ),
+          }
+        : {}),
       updatedAt: new Date(),
     };
 
@@ -154,6 +176,17 @@ export class SettingsService {
         defaultTitle: row.seoDefaultTitle,
         defaultDescription: row.seoDefaultDescription,
       },
+      shipping: {
+        feeMillimes: row.shippingFeeMillimes,
+        freeShippingEnabled: row.freeShippingEnabled,
+        ...(row.freeShippingThresholdMillimes !== null
+          ? {
+              freeShippingThresholdMillimes:
+                row.freeShippingThresholdMillimes,
+            }
+          : {}),
+      },
+      cod: { enabled: true },
       updatedAt: row.updatedAt.toISOString(),
     };
   }
@@ -167,6 +200,24 @@ export class SettingsService {
   private optional(value: string): string | null {
     const cleaned = value.trim();
     return cleaned || null;
+  }
+
+  private millimes(value: number): number {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new BadRequestException(
+        'shipping.feeMillimes must be a non-negative integer',
+      );
+    }
+    return value;
+  }
+
+  private positiveMillimes(value: number): number {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new BadRequestException(
+        'shipping.freeShippingThresholdMillimes must be a positive integer',
+      );
+    }
+    return value;
   }
 
   private logoUrl(value: string, field: string): string | null {
