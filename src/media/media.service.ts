@@ -53,6 +53,18 @@ export class MediaService {
     return this.createUploadTicket(input, 'admin-avatars');
   }
 
+  async createHeroUploadTicket(
+    input: ProductMediaUploadInput,
+  ): Promise<ProductMediaUploadTicket> {
+    this.validateInput(input, MAX_IMAGE_SIZE);
+    if (input.contentType !== 'image/webp') {
+      throw new BadRequestException(
+        'Hero uploads must be converted to WebP first',
+      );
+    }
+    return this.createUploadTicket(input, 'hero');
+  }
+
   private async createUploadTicket(
     input: ProductMediaUploadInput,
     prefix: string,

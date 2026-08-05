@@ -40,4 +40,13 @@ export class MediaController {
   ): Promise<ProductMediaUploadTicket> {
     return this.media.createAdminAvatarUploadTicket(input);
   }
+
+  @Post('hero-upload-url')
+  @RequirePermissions('content.write')
+  @ApiCreatedResponse()
+  createHeroUploadUrl(
+    @Body() input: CreateProductUploadDto,
+  ): Promise<ProductMediaUploadTicket> {
+    return this.media.createHeroUploadTicket(input);
+  }
 }

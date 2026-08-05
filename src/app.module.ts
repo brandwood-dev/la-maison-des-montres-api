@@ -19,6 +19,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ProfileModule } from './profile/profile.module';
 import { TeamModule } from './team/team.module';
 import { getThrottlerTracker } from './common/throttling';
+import { HeroModule } from './hero/hero.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { getThrottlerTracker } from './common/throttling';
     OrdersModule,
     ProfileModule,
     TeamModule,
+    HeroModule,
   ],
   controllers: [AppController],
   providers: [

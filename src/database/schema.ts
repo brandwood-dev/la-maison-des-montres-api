@@ -225,6 +225,31 @@ export const categories = appSchema.table(
   ],
 );
 
+export const heroSlides = appSchema.table(
+  'hero_slides',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tagline: varchar('tagline', { length: 80 }),
+    title: varchar('title', { length: 160 }).notNull(),
+    subtitle: varchar('subtitle', { length: 300 }),
+    ctaPrimaryLabel: varchar('cta_primary_label', { length: 80 }).notNull(),
+    ctaPrimaryHref: varchar('cta_primary_href', { length: 500 }).notNull(),
+    ctaSecondaryLabel: varchar('cta_secondary_label', { length: 80 }).notNull(),
+    ctaSecondaryHref: varchar('cta_secondary_href', { length: 500 }).notNull(),
+    imageUrl: text('image_url').notNull(),
+    imageKey: varchar('image_key', { length: 512 }),
+    imageAlt: varchar('image_alt', { length: 255 }),
+    sortOrder: integer('sort_order').default(1).notNull(),
+    active: boolean('active').default(true).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index('hero_slides_active_order_idx').on(table.active, table.sortOrder),
+    index('hero_slides_updated_idx').on(table.updatedAt),
+    check('hero_slides_order_positive', sql`${table.sortOrder} >= 1`),
+  ],
+);
+
 export const attributes = appSchema.table(
   'attributes',
   {
@@ -474,6 +499,7 @@ export type AdminSessionRow = typeof adminSessions.$inferSelect;
 export type AdminInvitationRow = typeof adminInvitations.$inferSelect;
 export type BrandRow = typeof brands.$inferSelect;
 export type CategoryRow = typeof categories.$inferSelect;
+export type HeroSlideRow = typeof heroSlides.$inferSelect;
 export type AttributeRow = typeof attributes.$inferSelect;
 export type AttributeValueRow = typeof attributeValues.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
