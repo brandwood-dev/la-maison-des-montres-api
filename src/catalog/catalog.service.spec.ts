@@ -141,4 +141,35 @@ describe('CatalogService', () => {
       service.updateAttribute(attribute.id, { type: 'multiselect' }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
+
+  it('persists merchandising flags and filters public products', async () => {
+    const brand = await service.createBrand({ name: 'Orient' });
+    await service.createProduct({
+      name: 'Orient Star',
+      brandId: brand.id,
+      reference: 'ORIENT-STAR',
+      description: 'Test',
+      price: 420000,
+      stock: 3,
+      status: 'published',
+      isBestSeller: true,
+      isFeatured: true,
+      seo: { slug: 'orient-star' },
+      categoryIds: [],
+      images: [],
+      attributes: [],
+    });
+
+    const page = await service.listPublicProducts({
+      page: 1,
+      pageSize: 10,
+      sortOrder: 'asc',
+      bestSeller: true,
+    });
+    expect(page.data).toHaveLength(1);
+    expect(page.data[0]).toMatchObject({
+      isBestSeller: true,
+      isNew: true,
+    });
+  });
 });

@@ -333,6 +333,8 @@ export class CatalogService {
       brandId: input.brandId,
       categoryId: input.categoryId,
       status: input.status,
+      isBestSeller: input.isBestSeller,
+      isFeatured: input.isFeatured,
     });
     const data = await Promise.all(
       page.data.map((item) => this.productResponse(item)),
@@ -362,6 +364,8 @@ export class CatalogService {
       minPrice: input.minPrice,
       maxPrice: input.maxPrice,
       promotion: input.promotion,
+      isBestSeller: input.bestSeller === true ? true : undefined,
+      isFeatured: input.featured === true ? true : undefined,
     });
     const data = await Promise.all(
       page.data.map((item) => this.publicProductResponse(item)),
@@ -420,6 +424,8 @@ export class CatalogService {
       oldPrice:
         input.oldPrice !== undefined ? input.oldPrice : current.oldPrice,
       stock: input.stock ?? current.stock,
+      isBestSeller: input.isBestSeller ?? current.isBestSeller,
+      isFeatured: input.isFeatured ?? current.isFeatured,
       promotionActive: input.promotion?.active ?? current.promotionActive,
       promotionStartsAt:
         input.promotion?.startsAt !== undefined
@@ -538,6 +544,8 @@ export class CatalogService {
       price: input.price,
       oldPrice: input.oldPrice ?? null,
       stock: input.stock ?? 0,
+      isBestSeller: input.isBestSeller ?? false,
+      isFeatured: input.isFeatured ?? false,
       promotionActive: input.promotion?.active ?? false,
       promotionStartsAt: input.promotion?.startsAt
         ? new Date(input.promotion.startsAt)
@@ -680,6 +688,8 @@ export class CatalogService {
       },
       finalPrice: product.price,
       stock: product.stock,
+      isBestSeller: product.isBestSeller,
+      isFeatured: product.isFeatured,
       available: product.status === 'published' && product.stock > 0,
       images: product.images.map((image) => ({
         id: image.id,
@@ -796,8 +806,8 @@ export class CatalogService {
       giftBoxIncluded: categories.some(
         (item) => item.slug === 'coffrets' || item.slug === 'coffrets-cadeaux',
       ),
-      isNew: false,
-      isBestSeller: false,
+      isNew: adminProduct.isFeatured,
+      isBestSeller: adminProduct.isBestSeller,
     };
   }
 

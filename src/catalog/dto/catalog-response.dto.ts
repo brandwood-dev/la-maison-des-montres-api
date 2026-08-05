@@ -215,6 +215,12 @@ export class ProductResponseDto {
   @ApiProperty({ type: Number, readOnly: true })
   stock!: number;
 
+  @ApiProperty()
+  isBestSeller!: boolean;
+
+  @ApiProperty()
+  isFeatured!: boolean;
+
   @ApiProperty({ readOnly: true })
   available!: boolean;
 

@@ -268,6 +268,10 @@ export class FakeCatalogRepository implements CatalogRepository {
         (!input.brandId || item.brandId === input.brandId) &&
         (!input.categoryId || item.categoryIds.includes(input.categoryId)) &&
         (!input.status || item.status === input.status) &&
+        (input.isBestSeller === undefined ||
+          item.isBestSeller === input.isBestSeller) &&
+        (input.isFeatured === undefined ||
+          item.isFeatured === input.isFeatured) &&
         (!input.availableOnly || item.stock > 0) &&
         (input.minPrice === undefined || item.price >= input.minPrice) &&
         (input.maxPrice === undefined || item.price <= input.maxPrice) &&
@@ -318,6 +322,8 @@ export class FakeCatalogRepository implements CatalogRepository {
       price: input.price,
       oldPrice: input.oldPrice ?? null,
       stock: input.stock,
+      isBestSeller: input.isBestSeller,
+      isFeatured: input.isFeatured,
       promotionActive: input.promotionActive,
       promotionStartsAt: input.promotionStartsAt ?? null,
       promotionEndsAt: input.promotionEndsAt ?? null,

@@ -334,6 +334,8 @@ export const products = appSchema.table(
     price: integer('price').notNull(),
     oldPrice: integer('old_price'),
     stock: integer('stock').default(0).notNull(),
+    isBestSeller: boolean('is_best_seller').default(false).notNull(),
+    isFeatured: boolean('is_featured').default(false).notNull(),
     promotionActive: boolean('promotion_active').default(false).notNull(),
     promotionStartsAt: timestamp('promotion_starts_at', {
       withTimezone: true,
@@ -359,6 +361,16 @@ export const products = appSchema.table(
     uniqueIndex('products_seo_slug_unique').on(table.seoSlug),
     index('products_brand_idx').on(table.brandId),
     index('products_status_created_idx').on(table.status, table.createdAt),
+    index('products_best_seller_idx').on(
+      table.status,
+      table.isBestSeller,
+      table.createdAt,
+    ),
+    index('products_featured_idx').on(
+      table.status,
+      table.isFeatured,
+      table.createdAt,
+    ),
     check('products_price_nonnegative', sql`${table.price} >= 0`),
     check('products_stock_nonnegative', sql`${table.stock} >= 0`),
     check(

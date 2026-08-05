@@ -56,6 +56,8 @@ export interface ProductListInput extends PaginationInput {
   minPrice?: number;
   maxPrice?: number;
   promotion?: 'active';
+  isBestSeller?: boolean;
+  isFeatured?: boolean;
 }
 
 export interface Page<T> {
@@ -73,6 +75,8 @@ export interface ProductWrite {
   price: number;
   oldPrice?: number | null;
   stock: number;
+  isBestSeller: boolean;
+  isFeatured: boolean;
   promotionActive: boolean;
   promotionStartsAt?: Date | null;
   promotionEndsAt?: Date | null;
@@ -454,6 +458,10 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       );
     }
     if (input.status) conditions.push(eq(products.status, input.status));
+    if (input.isBestSeller !== undefined)
+      conditions.push(eq(products.isBestSeller, input.isBestSeller));
+    if (input.isFeatured !== undefined)
+      conditions.push(eq(products.isFeatured, input.isFeatured));
     if (input.availableOnly) conditions.push(sql`${products.stock} > 0`);
     if (input.minPrice !== undefined)
       conditions.push(gte(products.price, input.minPrice));
@@ -549,6 +557,8 @@ export class DrizzleCatalogRepository implements CatalogRepository {
           price: input.price,
           oldPrice: input.oldPrice,
           stock: input.stock,
+          isBestSeller: input.isBestSeller,
+          isFeatured: input.isFeatured,
           promotionActive: input.promotionActive,
           promotionStartsAt: input.promotionStartsAt,
           promotionEndsAt: input.promotionEndsAt,
@@ -790,6 +800,8 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       price: input.price,
       oldPrice: input.oldPrice,
       stock: input.stock,
+      isBestSeller: input.isBestSeller,
+      isFeatured: input.isFeatured,
       promotionActive: input.promotionActive,
       promotionStartsAt: input.promotionStartsAt,
       promotionEndsAt: input.promotionEndsAt,

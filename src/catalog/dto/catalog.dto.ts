@@ -124,6 +124,20 @@ export class ProductListQueryDto extends ListQueryDto {
   @IsOptional()
   @IsEnum(productStatuses)
   status?: ProductStatus;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  isBestSeller?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  isFeatured?: boolean;
 }
 
 export class PublicProductListQueryDto extends ListQueryDto {
@@ -150,6 +164,20 @@ export class PublicProductListQueryDto extends ListQueryDto {
   @IsOptional()
   @IsEnum(['active'])
   promotion?: 'active';
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  bestSeller?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  featured?: boolean;
 }
 
 export class CreateBrandDto {
@@ -487,6 +515,14 @@ export class CreateProductDto {
   stock?: number;
 
   @IsOptional()
+  @IsBoolean()
+  isBestSeller?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => ProductPromotionDto)
   promotion?: ProductPromotionDto;
@@ -555,6 +591,14 @@ export class UpdateProductDto {
   @IsInt()
   @Min(0)
   stock?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isBestSeller?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
 
   @IsOptional()
   @ValidateNested()
