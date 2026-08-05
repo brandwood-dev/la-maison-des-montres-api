@@ -149,7 +149,10 @@ export interface CatalogRepository {
   listAttributeValues(attributeId: string): Promise<AttributeValueRow[]>;
   listAttributeValuesByAttributeIds?: (
     attributeIds: string[],
+    activeOnly?: boolean,
   ) => Promise<AttributeValueRow[]>;
+  countAttributeAssignments?: (attributeId: string) => Promise<number>;
+  countAttributeValueAssignments?: (valueId: string) => Promise<number>;
   findAttributeValue(id: string): Promise<AttributeValueRow | null>;
   findAttributesByIds?: (ids: string[]) => Promise<AttributeRow[]>;
   findAttributeValuesByIds?: (ids: string[]) => Promise<AttributeValueRow[]>;
@@ -348,17 +351,36 @@ export class DrizzleCatalogRepository implements CatalogRepository {
 
   async listAttributeValuesByAttributeIds(
     attributeIds: string[],
+    activeOnly = false,
   ): Promise<AttributeValueRow[]> {
     if (attributeIds.length === 0) return [];
+    const conditions = [inArray(attributeValues.attributeId, attributeIds)];
+    if (activeOnly) conditions.push(eq(attributeValues.active, true));
     return this.getDatabase()
       .select()
       .from(attributeValues)
-      .where(inArray(attributeValues.attributeId, attributeIds))
+      .where(and(...conditions))
       .orderBy(
         asc(attributeValues.attributeId),
         asc(attributeValues.sortOrder),
         asc(attributeValues.label),
       );
+  }
+
+  async countAttributeAssignments(attributeId: string): Promise<number> {
+    const [row] = await this.getDatabase()
+      .select({ value: count() })
+      .from(productAttributeValues)
+      .where(eq(productAttributeValues.attributeId, attributeId));
+    return Number(row?.value ?? 0);
+  }
+
+  async countAttributeValueAssignments(valueId: string): Promise<number> {
+    const [row] = await this.getDatabase()
+      .select({ value: count() })
+      .from(productAttributeValues)
+      .where(eq(productAttributeValues.valueId, valueId));
+    return Number(row?.value ?? 0);
   }
 
   findAttributeValue(id: string): Promise<AttributeValueRow | null> {

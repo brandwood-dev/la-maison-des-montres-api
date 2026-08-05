@@ -203,6 +203,19 @@ export class FakeCatalogRepository implements CatalogRepository {
     return Promise.resolve(this.remove(this.attributes, id));
   }
 
+  countAttributeAssignments(attributeId: string): Promise<number> {
+    return Promise.resolve(
+      this.products.reduce(
+        (total, product) =>
+          total +
+          product.attributes.filter(
+            (assignment) => assignment.attributeId === attributeId,
+          ).length,
+        0,
+      ),
+    );
+  }
+
   listAttributeValues(attributeId: string): Promise<AttributeValueRow[]> {
     return Promise.resolve(
       this.values.filter((item) => item.attributeId === attributeId),
@@ -232,6 +245,21 @@ export class FakeCatalogRepository implements CatalogRepository {
 
   deleteAttributeValue(id: string): Promise<boolean> {
     return Promise.resolve(this.remove(this.values, id));
+  }
+
+  countAttributeValueAssignments(valueId: string): Promise<number> {
+    return Promise.resolve(
+      this.products.reduce(
+        (total, product) =>
+          total +
+          product.attributes.reduce(
+            (count, assignment) =>
+              count + (assignment.valueIds.includes(valueId) ? 1 : 0),
+            0,
+          ),
+        0,
+      ),
+    );
   }
 
   listProducts(input: ProductListInput): Promise<Page<ProductDetail>> {

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { FakeCatalogRepository } from '../../test/support/fake-repositories';
 import { CatalogService } from './catalog.service';
 
@@ -107,5 +107,38 @@ describe('CatalogService', () => {
         attributes: [],
       }),
     ).rejects.toThrow('requires an oldPrice greater than price');
+  });
+
+  it('protects attributes and values used by products', async () => {
+    const brand = await service.createBrand({ name: 'Citizen' });
+    const attribute = await service.createAttribute({
+      code: 'matiere',
+      label: 'Matière',
+      type: 'select',
+    });
+    const steel = await service.createAttributeValue(attribute.id, {
+      label: 'Acier',
+    });
+    await service.createProduct({
+      name: 'Test protection',
+      brandId: brand.id,
+      reference: 'PROTECTED-001',
+      description: 'Test',
+      price: 250000,
+      seo: { slug: 'test-protection' },
+      categoryIds: [],
+      images: [],
+      attributes: [{ attributeId: attribute.id, valueIds: [steel.id] }],
+    });
+
+    await expect(service.deleteAttribute(attribute.id)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    await expect(
+      service.deleteAttributeValue(steel.id),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.updateAttribute(attribute.id, { type: 'multiselect' }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

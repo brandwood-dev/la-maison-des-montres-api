@@ -202,7 +202,7 @@ export class CatalogService {
       active: true,
       filterable: true,
     });
-    const data = await this.attributeResponses(page.data);
+    const data = await this.attributeResponses(page.data, true);
     return { ...page, data };
   }
 
@@ -223,7 +223,17 @@ export class CatalogService {
   }
 
   async updateAttribute(id: string, input: UpdateAttributeDto) {
-    await this.attributeRow(id);
+    const current = await this.attributeRow(id);
+    if (input.type && input.type !== current.type) {
+      const usage = this.repository.countAttributeAssignments
+        ? await this.repository.countAttributeAssignments(id)
+        : 0;
+      if (usage > 0) {
+        throw new ConflictException(
+          'Attribute type cannot change while products use this attribute',
+        );
+      }
+    }
     const row = await this.repository.updateAttribute(id, {
       ...(input.label ? { name: input.label.trim() } : {}),
       ...(input.code ? { slug: input.code } : {}),
@@ -238,6 +248,15 @@ export class CatalogService {
   }
 
   async deleteAttribute(id: string): Promise<void> {
+    const current = await this.attributeRow(id);
+    const usage = this.repository.countAttributeAssignments
+      ? await this.repository.countAttributeAssignments(current.id)
+      : 0;
+    if (usage > 0) {
+      throw new ConflictException(
+        'Attribute is used by products; deactivate it instead of deleting it',
+      );
+    }
     if (!(await this.repository.deleteAttribute(id))) {
       throw new NotFoundException('Attribute not found');
     }
@@ -294,7 +313,16 @@ export class CatalogService {
   }
 
   async deleteAttributeValue(id: string): Promise<void> {
-    if (!(await this.repository.deleteAttributeValue(id))) {
+    const current = await this.attributeValueRow(id);
+    const usage = this.repository.countAttributeValueAssignments
+      ? await this.repository.countAttributeValueAssignments(current.id)
+      : 0;
+    if (usage > 0) {
+      throw new ConflictException(
+        'Attribute value is used by products; deactivate it instead of deleting it',
+      );
+    }
+    if (!(await this.repository.deleteAttributeValue(current.id))) {
       throw new NotFoundException('Attribute value not found');
     }
   }
@@ -564,10 +592,11 @@ export class CatalogService {
     };
   }
 
-  private async attributeResponses(rows: AttributeRow[]) {
+  private async attributeResponses(rows: AttributeRow[], activeValuesOnly = false) {
     const values = this.repository.listAttributeValuesByAttributeIds
       ? await this.repository.listAttributeValuesByAttributeIds(
           rows.map((row) => row.id),
+          activeValuesOnly,
         )
       : [];
     const valuesByAttribute = new Map<string, AttributeValueRow[]>();
@@ -576,16 +605,21 @@ export class CatalogService {
       attributeValues.push(value);
       valuesByAttribute.set(value.attributeId, attributeValues);
     }
-    return Promise.all(
-      rows.map((row) =>
+    const responses = await Promise.all(
+      rows.map(async (row) =>
         this.attributeResponse(
           row,
           this.repository.listAttributeValuesByAttributeIds
             ? (valuesByAttribute.get(row.id) ?? [])
-            : undefined,
+            : activeValuesOnly
+              ? (await this.repository.listAttributeValues(row.id)).filter(
+                  (value) => value.active,
+                )
+              : undefined,
         ),
       ),
     );
+    return responses;
   }
 
   private async attributeResponse(
