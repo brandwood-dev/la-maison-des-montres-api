@@ -179,7 +179,7 @@ export class HeroService {
     return (await this.list({ page: 1, pageSize: 100 })).data;
   }
 
-  async publicList(): Promise<HeroSlideResponse[]> {
+  async publicList(): Promise<HeroPage> {
     const database = this.getDatabase();
     const rows = await database
       .select()
@@ -187,7 +187,12 @@ export class HeroService {
       .where(eq(heroSlides.active, true))
       .orderBy(asc(heroSlides.sortOrder), desc(heroSlides.updatedAt))
       .limit(MAX_ACTIVE_SLIDES);
-    return rows.map((row) => this.response(row));
+    return {
+      data: rows.map((row) => this.response(row)),
+      page: 1,
+      pageSize: MAX_ACTIVE_SLIDES,
+      total: rows.length,
+    };
   }
 
   private async find(id: string): Promise<HeroSlideRow | null> {
