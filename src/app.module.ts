@@ -18,6 +18,7 @@ import { MediaModule } from './media/media.module';
 import { OrdersModule } from './orders/orders.module';
 import { ProfileModule } from './profile/profile.module';
 import { TeamModule } from './team/team.module';
+import { getThrottlerTracker } from './common/throttling';
 
 @Module({
   imports: [
@@ -30,7 +31,9 @@ import { TeamModule } from './team/team.module';
         abortEarly: false,
       },
     }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot([
+      { ttl: 60_000, limit: 120, getTracker: getThrottlerTracker },
+    ]),
     AccessModule,
     DatabaseModule,
     EmailModule,
