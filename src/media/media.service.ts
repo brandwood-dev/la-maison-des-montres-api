@@ -6,7 +6,6 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
-import { extname } from 'node:path';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
@@ -70,8 +69,11 @@ export class MediaService {
     prefix: string,
   ): Promise<ProductMediaUploadTicket> {
     const bucket = this.config.getOrThrow<string>('SUPABASE_STORAGE_BUCKET');
-    const extension = extname(input.fileName).toLowerCase();
-    const key = `${prefix}/${randomUUID()}${extension || this.extensionFor(input.contentType)}`;
+    // Never trust a user-provided filename extension. Derive the key suffix
+    // from the validated MIME type so uploaded objects cannot carry a
+    // misleading or executable-looking extension.
+    const extension = this.extensionFor(input.contentType);
+    const key = `${prefix}/${randomUUID()}${extension}`;
     const storage = this.getClient().storage.from(bucket);
     const { data, error } = await storage.createSignedUploadUrl(key, {
       upsert: false,

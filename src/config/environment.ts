@@ -92,8 +92,33 @@ export const environmentSchema = Joi.object({
 });
 
 export function parseOrigins(value: string | undefined): string[] {
-  return (value ?? '')
+  const origins = (value ?? '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+  return origins.map((origin) => {
+    if (origin === '*') {
+      throw new Error(
+        'CORS_ORIGINS must contain explicit origins when credentials are enabled',
+      );
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new Error(`Invalid CORS origin: ${origin}`);
+    }
+    if (
+      !['http:', 'https:'].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password ||
+      parsed.pathname !== '/' ||
+      parsed.search ||
+      parsed.hash
+    ) {
+      throw new Error(`Invalid CORS origin: ${origin}`);
+    }
+    return `${parsed.protocol}//${parsed.host}`;
+  });
 }
