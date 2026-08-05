@@ -24,6 +24,7 @@ import { PromoBannerModule } from './promo-banner/promo-banner.module';
 import { SearchModule } from './search/search.module';
 import { TestimonialsModule } from './testimonials/testimonials.module';
 import { SettingsModule } from './settings/settings.module';
+import { FeedsModule } from './feeds/feeds.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { SettingsModule } from './settings/settings.module';
     SearchModule,
     TestimonialsModule,
     SettingsModule,
+    FeedsModule,
   ],
   controllers: [AppController],
   providers: [

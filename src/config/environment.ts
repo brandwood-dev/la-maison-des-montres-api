@@ -36,6 +36,15 @@ export const environmentSchema = Joi.object({
       .uri({ scheme: ['http', 'https'] })
       .default('http://localhost:4173'),
   }),
+  PUBLIC_SITE_URL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string()
+      .uri({ scheme: ['https'] })
+      .default('https://lamaisondesmontres.com'),
+    otherwise: Joi.string()
+      .uri({ scheme: ['http', 'https'] })
+      .default('http://localhost:4173'),
+  }),
   CLOUDFLARE_ACCOUNT_ID: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()
