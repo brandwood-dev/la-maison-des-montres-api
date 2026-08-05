@@ -494,6 +494,7 @@ export const storeSettings = appSchema.table('store_settings', {
   identityName: varchar('identity_name', { length: 160 }).notNull(),
   identityTagline: varchar('identity_tagline', { length: 200 }),
   identityLogoUrl: text('identity_logo_url'),
+  identityLogoLightUrl: text('identity_logo_light_url'),
   currency: varchar('currency', { length: 3 }).default('TND').notNull(),
   supportEmail: varchar('support_email', { length: 320 }),
   supportPhone: varchar('support_phone', { length: 32 }),

@@ -15,6 +15,7 @@ export type StoreSettingsResponse = {
     name: string;
     tagline?: string;
     logoUrl?: string;
+    logoLightUrl?: string;
     currency: 'TND';
   };
   support: {
@@ -73,7 +74,20 @@ export class SettingsService {
         ? { identityTagline: this.optional(input.identity.tagline) }
         : {}),
       ...(input.identity?.logoUrl !== undefined
-        ? { identityLogoUrl: this.logoUrl(input.identity.logoUrl) }
+        ? {
+            identityLogoUrl: this.logoUrl(
+              input.identity.logoUrl,
+              'identity.logoUrl',
+            ),
+          }
+        : {}),
+      ...(input.identity?.logoLightUrl !== undefined
+        ? {
+            identityLogoLightUrl: this.logoUrl(
+              input.identity.logoLightUrl,
+              'identity.logoLightUrl',
+            ),
+          }
         : {}),
       ...(input.support?.email !== undefined
         ? { supportEmail: this.optional(input.support.email) }
@@ -125,6 +139,9 @@ export class SettingsService {
         name: row.identityName,
         ...(row.identityTagline ? { tagline: row.identityTagline } : {}),
         ...(row.identityLogoUrl ? { logoUrl: row.identityLogoUrl } : {}),
+        ...(row.identityLogoLightUrl
+          ? { logoLightUrl: row.identityLogoLightUrl }
+          : {}),
         currency: 'TND',
       },
       support: {
@@ -152,7 +169,7 @@ export class SettingsService {
     return cleaned || null;
   }
 
-  private logoUrl(value: string): string | null {
+  private logoUrl(value: string, field: string): string | null {
     const cleaned = value.trim();
     if (!cleaned) return null;
     if (cleaned.startsWith('/')) return cleaned;
@@ -164,7 +181,7 @@ export class SettingsService {
       return url.toString();
     } catch {
       throw new BadRequestException(
-        'identity.logoUrl must be an HTTPS URL or a local path',
+        field + ' must be an HTTPS URL or a local path',
       );
     }
   }

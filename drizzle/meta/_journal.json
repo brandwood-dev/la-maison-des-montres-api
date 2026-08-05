@@ -85,6 +85,13 @@
       "when": 1785925485632,
       "tag": "0011_sour_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785930000000,
+      "tag": "0012_dual_identity_logo",
+      "breakpoints": true
     }
   ]
 }

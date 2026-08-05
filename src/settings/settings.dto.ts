@@ -34,6 +34,13 @@ export class UpdateIdentitySettingsDto {
   @Transform(emptyToUndefined)
   @Transform(trimValue)
   logoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  @Transform(emptyToUndefined)
+  @Transform(trimValue)
+  logoLightUrl?: string;
 }
 
 export class UpdateSupportSettingsDto {
