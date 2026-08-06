@@ -143,6 +143,15 @@ export class ProductImageResponseDto {
   @ApiPropertyOptional()
   alt?: string;
 
+  @ApiPropertyOptional({ format: 'uri', description: 'URL WebP optimisée' })
+  optimizedUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Variantes WebP responsive' })
+  srcSet?: string;
+
+  @ApiPropertyOptional({ description: 'Tailles responsives recommandées' })
+  sizes?: string;
+
   @ApiProperty({ minimum: 0 })
   order!: number;
 }

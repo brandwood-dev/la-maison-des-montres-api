@@ -6,6 +6,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
+import { publicImageVariants } from './media-url';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024;
@@ -30,6 +31,9 @@ export type ProductMediaUploadTicket = {
   method: 'PUT';
   headers: { 'content-type': string };
   expiresAt: string;
+  optimizedUrl?: string;
+  srcSet?: string;
+  sizes?: string;
 };
 
 @Injectable()
@@ -86,6 +90,7 @@ export class MediaService {
     }
 
     const publicUrl = storage.getPublicUrl(key).data.publicUrl;
+    const variants = publicImageVariants(publicUrl);
     return {
       provider: 'supabase',
       key,
@@ -94,6 +99,7 @@ export class MediaService {
       method: 'PUT',
       headers: { 'content-type': input.contentType },
       expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      ...(variants ?? {}),
     };
   }
 

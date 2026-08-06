@@ -34,6 +34,7 @@ import type {
   UpdateCategoryDto,
   UpdateProductDto,
 } from './dto/catalog.dto';
+import { publicImageVariants } from '../media/media-url';
 
 @Injectable()
 export class CatalogService {
@@ -697,6 +698,7 @@ export class CatalogService {
         url: image.url,
         alt: image.alt ?? undefined,
         order: image.sortOrder,
+        ...(publicImageVariants(image.url) ?? {}),
       })),
       categoryIds: product.categoryIds,
       attributes: product.attributes,
@@ -793,6 +795,7 @@ export class CatalogService {
         url: image.url,
         alt: image.alt ?? adminProduct.name,
         position: image.order + 1,
+        ...(publicImageVariants(image.url) ?? {}),
       })),
       attributes: publicAttributes,
       shortDescription: adminProduct.description,
