@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   ServiceUnavailableException,
@@ -24,6 +25,8 @@ const INVITATION_TTL_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class TeamService {
+  private readonly logger = new Logger(TeamService.name);
+
   constructor(
     @Inject(TEAM_REPOSITORY) private readonly repository: TeamRepository,
     private readonly email: EmailService,
@@ -124,12 +127,12 @@ export class TeamService {
       (item) => item.id === id,
     );
     if (!invitation) throw new NotFoundException('Invitation not found');
-    await this.access?.setEmailAccess(invitation.email, false);
     const updated = await this.repository.updateInvitation(id, {
       revokedAt: new Date(),
       updatedAt: new Date(),
     });
     if (!updated) throw new NotFoundException('Invitation not found');
+    await this.syncAccess(invitation.email, false);
   }
 
   async updateMember(
@@ -167,6 +170,30 @@ export class TeamService {
     });
     if (!updated) throw new NotFoundException('Team member not found');
     return { member: this.userResponse(updated) };
+  }
+
+  async removeMember(id: string, request: AuthenticatedRequest) {
+    const user = await this.repository.findUserById(id);
+    if (!user) throw new NotFoundException('Team member not found');
+    if (request.admin?.id === id) {
+      throw new BadRequestException('You cannot delete your own account');
+    }
+    if (
+      user.role === 'super_admin' &&
+      user.status === 'active' &&
+      (await this.repository.countActiveSuperAdmins()) <= 1
+    ) {
+      throw new ConflictException(
+        'At least one active super administrator is required',
+      );
+    }
+
+    const deleted = await this.repository.deleteUser(id);
+    if (!deleted) throw new NotFoundException('Team member not found');
+    // The API account is already gone, so a Cloudflare Access synchronization
+    // failure must not make the destructive action appear unsuccessful.
+    await this.syncAccess(deleted.email, false);
+    return { deleted: true, member: this.userResponse(deleted) };
   }
 
   async accept(token: string, password: string) {
@@ -244,5 +271,17 @@ export class TeamService {
       'code' in error &&
       error.code === '23505',
     );
+  }
+
+  private async syncAccess(email: string, enabled: boolean): Promise<void> {
+    try {
+      await this.access?.setEmailAccess(email, enabled);
+    } catch (error) {
+      this.logger.warn(
+        `Cloudflare Access synchronization skipped for team change: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
   }
 }

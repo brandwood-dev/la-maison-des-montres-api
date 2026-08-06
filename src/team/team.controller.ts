@@ -71,6 +71,15 @@ export class TeamController {
   ) {
     return this.team.updateMember(id, input, request);
   }
+
+  @Delete(':id')
+  @ApiOkResponse()
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.team.removeMember(id, request);
+  }
 }
 
 @Controller('api/v1/auth/invitations')

@@ -38,6 +38,7 @@ export interface TeamRepository {
     id: string,
     input: Partial<Pick<AdminUserRow, 'role' | 'status'>>,
   ): Promise<AdminUserRow | null>;
+  deleteUser(id: string): Promise<AdminUserRow | null>;
   countActiveSuperAdmins(): Promise<number>;
   acceptInvitation(input: {
     tokenHash: string;
@@ -140,6 +141,14 @@ export class DrizzleTeamRepository implements TeamRepository {
     const [row] = await this.getDatabase()
       .update(adminUsers)
       .set({ ...input, updatedAt: new Date() })
+      .where(eq(adminUsers.id, id))
+      .returning();
+    return row ?? null;
+  }
+
+  async deleteUser(id: string): Promise<AdminUserRow | null> {
+    const [row] = await this.getDatabase()
+      .delete(adminUsers)
       .where(eq(adminUsers.id, id))
       .returning();
     return row ?? null;

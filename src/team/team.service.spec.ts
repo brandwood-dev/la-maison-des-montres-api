@@ -58,6 +58,73 @@ describe('TeamService', () => {
       } as AuthenticatedRequest),
     ).rejects.toThrow('You cannot change your own role or status');
   });
+
+  it('revokes a pending invitation and invalidates its access entry', async () => {
+    const invitation = invitationRow();
+    const updateInvitation = jest.fn().mockResolvedValue({
+      ...invitation,
+      revokedAt: new Date(),
+    });
+    const repository = {
+      listPendingInvitations: jest.fn().mockResolvedValue([invitation]),
+      updateInvitation,
+    } as unknown as TeamRepository;
+    const setEmailAccess = jest
+      .fn<Promise<void>, [string, boolean]>()
+      .mockResolvedValue(undefined);
+    const access = { setEmailAccess };
+    const service = new TeamService(
+      repository,
+      {} as EmailService,
+      access as never,
+    );
+
+    await service.revoke(invitation.id);
+
+    expect(updateInvitation).toHaveBeenCalledWith(
+      invitation.id,
+      expect.any(Object),
+    );
+    expect(setEmailAccess).toHaveBeenCalledWith(invitation.email, false);
+  });
+
+  it('deletes another member but protects the current account', async () => {
+    const user = userRow();
+    const deleteUser = jest.fn().mockResolvedValue(user);
+    const repository = {
+      findUserById: jest.fn().mockResolvedValue(user),
+      deleteUser,
+      countActiveSuperAdmins: jest.fn().mockResolvedValue(2),
+    } as unknown as TeamRepository;
+    const service = new TeamService(repository, {} as EmailService);
+
+    const result = await service.removeMember(user.id, {
+      admin: { id: randomUUID() },
+    } as AuthenticatedRequest);
+    expect(result.deleted).toBe(true);
+    expect(deleteUser).toHaveBeenCalledWith(user.id);
+
+    await expect(
+      service.removeMember(user.id, {
+        admin: { id: user.id },
+      } as AuthenticatedRequest),
+    ).rejects.toThrow('You cannot delete your own account');
+  });
+
+  it('protects the last active super administrator from deletion', async () => {
+    const user = userRow();
+    const repository = {
+      findUserById: jest.fn().mockResolvedValue(user),
+      countActiveSuperAdmins: jest.fn().mockResolvedValue(1),
+    } as unknown as TeamRepository;
+    const service = new TeamService(repository, {} as EmailService);
+
+    await expect(
+      service.removeMember(user.id, {
+        admin: { id: randomUUID() },
+      } as AuthenticatedRequest),
+    ).rejects.toThrow('At least one active super administrator is required');
+  });
 });
 
 function invitationRow(): AdminInvitationRow {
