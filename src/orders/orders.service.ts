@@ -18,12 +18,15 @@ import {
 import {
   brands,
   orderItems,
+  orderStatusHistory,
   orders,
   productImages,
   products,
   type OrderItemRow,
   type OrderRow,
+  type OrderStatusHistoryRow,
 } from '../database/schema';
+import type { AuthenticatedAdmin } from '../auth/auth.types';
 import type {
   CreateOrderDto,
   ListOrdersQueryDto,
@@ -50,6 +53,7 @@ type ProductSnapshot = {
 type StoredOrder = {
   order: OrderRow;
   items: OrderItemRow[];
+  history: OrderStatusHistoryRow[];
 };
 
 export type PublicOrderResponse = {
@@ -136,7 +140,15 @@ export type AdminOrderResponse = {
     postalCode?: string;
     country: string;
   };
-  history: [];
+  history: Array<{
+    at: string;
+    byUserId?: string;
+    byName: string;
+    action: string;
+    note?: string;
+    fromStatus?: OrderRow['status'];
+    toStatus: OrderRow['status'];
+  }>;
   idempotencyKey: string;
   createdAt: string;
   updatedAt: string;
@@ -204,7 +216,7 @@ export class OrdersService {
             .from(orderItems)
             .where(eq(orderItems.orderId, duplicate[0].id))
             .orderBy(asc(orderItems.id));
-          return { order: duplicate[0], items: duplicateItems };
+          return { order: duplicate[0], items: duplicateItems, history: [] };
         }
 
         const [order] = await tx
@@ -245,7 +257,14 @@ export class OrdersService {
             })),
           )
           .returning();
-        return { order, items: storedItems };
+        await tx.insert(orderStatusHistory).values({
+          orderId: order.id,
+          toStatus: order.status,
+          changedByName: 'Système',
+          action: 'Commande créée',
+          createdAt: order.createdAt,
+        });
+        return { order, items: storedItems, history: [] };
       });
       const response = this.toResponse(stored, productsById);
       await this.email.notifyNewOrder(response);
@@ -296,7 +315,11 @@ export class OrdersService {
     );
     return {
       data: rows.map((row) =>
-        this.toAdminResponse({ order: row, items: itemRows.get(row.id) ?? [] }),
+        this.toAdminResponse({
+          order: row,
+          items: itemRows.get(row.id) ?? [],
+          history: [],
+        }),
       ),
       page: input.page,
       pageSize: input.pageSize,
@@ -331,6 +354,7 @@ export class OrdersService {
     const response = this.toResponse({
       order,
       items: itemRows.get(order.id) ?? [],
+      history: [],
     });
     return {
       id: response.id,
@@ -354,47 +378,79 @@ export class OrdersService {
       .limit(1);
     if (!order) throw new NotFoundException('Order not found');
     const itemRows = await this.itemsForOrders(database, [order.id]);
-    return this.toAdminResponse({ order, items: itemRows.get(order.id) ?? [] });
+    const historyRows = await this.historyForOrders(database, [order.id]);
+    return this.toAdminResponse({
+      order,
+      items: itemRows.get(order.id) ?? [],
+      history: historyRows.get(order.id) ?? [],
+    });
   }
 
   async updateStatus(
     id: string,
     nextStatus: AdminOrderResponse['status'],
+    actor: Pick<AuthenticatedAdmin, 'id' | 'email' | 'fullName'>,
   ): Promise<AdminOrderResponse> {
     const database = this.getDatabase();
-    const current = await this.get(id);
-    if (current.status === nextStatus) return current;
-    const allowed = this.allowedStatusTransitions(current.status);
-    if (!allowed.includes(nextStatus)) {
-      throw new BadRequestException({
-        code: 'INVALID_STATUS_TRANSITION',
-        message: 'This order status cannot be changed to the requested value',
-      });
-    }
-    const [updated] = await database
-      .update(orders)
-      .set({
-        status: nextStatus,
-        deliveredAt: nextStatus === 'delivered' ? new Date() : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(orders.id, id))
-      .returning();
-    if (!updated) throw new NotFoundException('Order not found');
-    return this.toAdminResponse({
-      order: updated,
-      items: current.items.map((item) => ({
-        id: item.id,
-        orderId: updated.id,
-        productId: item.productId,
-        name: item.name,
-        reference: item.reference,
-        imageUrl: item.imageUrl ?? null,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        lineTotal: item.lineTotal,
-      })),
+    await database.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, id))
+        .limit(1);
+      if (!current) throw new NotFoundException('Order not found');
+
+      const statusChanged = current.status !== nextStatus;
+      const paymentNeedsReconciliation =
+        nextStatus === 'delivered' && current.paymentStatus === 'pending';
+      if (!statusChanged && !paymentNeedsReconciliation) return;
+
+      if (
+        statusChanged &&
+        !this.allowedStatusTransitions(current.status).includes(nextStatus)
+      ) {
+        throw new BadRequestException({
+          code: 'INVALID_STATUS_TRANSITION',
+          message: 'This order status cannot be changed to the requested value',
+        });
+      }
+
+      const now = new Date();
+      await tx
+        .update(orders)
+        .set({
+          status: nextStatus,
+          paymentStatus: paymentNeedsReconciliation
+            ? 'paid'
+            : current.paymentStatus,
+          deliveredAt:
+            nextStatus === 'delivered'
+              ? current.status === 'delivered' && current.deliveredAt
+                ? current.deliveredAt
+                : now
+              : null,
+          updatedAt: now,
+        })
+        .where(eq(orders.id, id));
+
+      if (statusChanged) {
+        await tx.insert(orderStatusHistory).values({
+          orderId: id,
+          fromStatus: current.status,
+          toStatus: nextStatus,
+          changedBy: actor.id,
+          changedByName: actor.fullName || actor.email,
+          changedByEmail: actor.email,
+          action: 'Statut de commande modifié',
+          ...(paymentNeedsReconciliation
+            ? { note: 'Paiement COD automatiquement marqué comme payé.' }
+            : {}),
+          createdAt: now,
+        });
+      }
     });
+
+    return this.get(id);
   }
 
   private normalizeItems(items: OrderItemDto[]): OrderItemDto[] {
@@ -492,7 +548,7 @@ export class OrdersService {
       .from(orderItems)
       .where(eq(orderItems.orderId, order.id))
       .orderBy(asc(orderItems.id));
-    return { order, items };
+    return { order, items, history: [] };
   }
 
   private async itemsForOrders(
@@ -508,6 +564,26 @@ export class OrdersService {
       .orderBy(asc(orderItems.id));
     for (const row of rows) {
       grouped.set(row.orderId, [...(grouped.get(row.orderId) ?? []), row]);
+    }
+    return grouped;
+  }
+
+  private async historyForOrders(
+    database: AppDatabase,
+    orderIds: string[],
+  ): Promise<Map<string, OrderStatusHistoryRow[]>> {
+    const grouped = new Map<string, OrderStatusHistoryRow[]>();
+    if (orderIds.length === 0) return grouped;
+    const rows = await database
+      .select()
+      .from(orderStatusHistory)
+      .where(inArray(orderStatusHistory.orderId, orderIds))
+      .orderBy(desc(orderStatusHistory.createdAt));
+    for (const row of rows) {
+      grouped.set(row.orderId, [
+        ...(grouped.get(row.orderId) ?? []),
+        row,
+      ]);
     }
     return grouped;
   }
@@ -554,7 +630,15 @@ export class OrdersService {
           : {}),
         country: 'Tunisie',
       },
-      history: [],
+      history: stored.history.map((entry) => ({
+        at: entry.createdAt.toISOString(),
+        ...(entry.changedBy ? { byUserId: entry.changedBy } : {}),
+        byName: entry.changedByName,
+        action: entry.action,
+        ...(entry.note ? { note: entry.note } : {}),
+        ...(entry.fromStatus ? { fromStatus: entry.fromStatus } : {}),
+        toStatus: entry.toStatus,
+      })),
       idempotencyKey: stored.order.idempotencyKey,
       createdAt: stored.order.createdAt.toISOString(),
       updatedAt: stored.order.updatedAt.toISOString(),

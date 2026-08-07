@@ -587,6 +587,39 @@ export const orderItems = appSchema.table(
   ],
 );
 
+/**
+ * Immutable audit trail for admin order status changes. The actor snapshot
+ * keeps the history readable even if an admin account is later removed.
+ */
+export const orderStatusHistory = appSchema.table(
+  'order_status_history',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    fromStatus: orderStatus('from_status'),
+    toStatus: orderStatus('to_status').notNull(),
+    changedBy: uuid('changed_by').references(() => adminUsers.id, {
+      onDelete: 'set null',
+    }),
+    changedByName: varchar('changed_by_name', { length: 160 }).notNull(),
+    changedByEmail: varchar('changed_by_email', { length: 320 }),
+    action: varchar('action', { length: 240 }).notNull(),
+    note: varchar('note', { length: 500 }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('order_status_history_order_created_idx').on(
+      table.orderId,
+      table.createdAt,
+    ),
+    index('order_status_history_actor_idx').on(table.changedBy),
+  ],
+);
+
 export type AdminUserRow = typeof adminUsers.$inferSelect;
 export type AdminSessionRow = typeof adminSessions.$inferSelect;
 export type AdminInvitationRow = typeof adminInvitations.$inferSelect;
@@ -602,3 +635,4 @@ export type TestimonialRow = typeof testimonials.$inferSelect;
 export type StoreSettingsRow = typeof storeSettings.$inferSelect;
 export type OrderRow = typeof orders.$inferSelect;
 export type OrderItemRow = typeof orderItems.$inferSelect;
+export type OrderStatusHistoryRow = typeof orderStatusHistory.$inferSelect;

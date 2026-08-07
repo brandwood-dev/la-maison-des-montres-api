@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from '@nestjs/common';
 import { ApiCreatedResponse } from '@nestjs/swagger';
 import { Public, RequirePermissions } from '../auth/auth.decorators';
@@ -19,6 +20,7 @@ import {
   UpdateOrderStatusDto,
 } from './dto/create-order.dto';
 import { OrdersService, type PublicOrderResponse } from './orders.service';
+import type { AuthenticatedRequest } from '../auth/auth.types';
 
 @Controller('api/v1/orders')
 export class OrdersController {
@@ -56,7 +58,8 @@ export class OrdersController {
   updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: UpdateOrderStatusDto,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.orders.updateStatus(id, input.status);
+    return this.orders.updateStatus(id, input.status, request.admin!);
   }
 }
