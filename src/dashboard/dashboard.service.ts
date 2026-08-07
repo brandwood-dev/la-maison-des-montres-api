@@ -109,9 +109,14 @@ export class DashboardService {
         .groupBy(sql.raw('1'))
         .orderBy(sql.raw('1')),
       database
-        .select({ value: sql<string>`count(distinct ${orders.customerPhone})` })
+        // A customer is any order holder, regardless of order status. The
+        // canonical phone prevents duplicates caused by spaces, +216, 00216
+        // or local Tunisian formats.
+        .select({
+          value: sql<string>`count(distinct ${orders.customerPhoneNormalized})`,
+        })
         .from(orders)
-        .where(deliveredWhere),
+        .where(isNotNull(orders.customerPhoneNormalized)),
       database
         .select({ value: count() })
         .from(products)

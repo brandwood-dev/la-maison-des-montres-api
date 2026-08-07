@@ -227,6 +227,9 @@ export class OrdersService {
             customerName,
             customerEmail: input.shipping.email?.trim() || null,
             customerPhone: input.shipping.phone.trim(),
+            customerPhoneNormalized: normalizeTunisiaPhone(
+              input.shipping.phone,
+            ),
             governorate: input.shipping.governorate.trim(),
             city: input.shipping.city.trim(),
             address: input.shipping.address.trim(),

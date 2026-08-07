@@ -557,6 +557,12 @@ export const orders = appSchema.table(
     customerName: varchar('customer_name', { length: 200 }).notNull(),
     customerEmail: varchar('customer_email', { length: 320 }),
     customerPhone: varchar('customer_phone', { length: 32 }).notNull(),
+    // Canonical Tunisian phone used for customer deduplication in analytics.
+    // Nullable keeps historical orders with invalid/missing formats countable
+    // as orders while excluding them from the distinct-customer KPI.
+    customerPhoneNormalized: varchar('customer_phone_normalized', {
+      length: 16,
+    }),
     governorate: varchar('governorate', { length: 120 }).notNull(),
     city: varchar('city', { length: 160 }).notNull(),
     address: text('address').notNull(),
@@ -581,6 +587,7 @@ export const orders = appSchema.table(
     index('orders_status_created_idx').on(table.status, table.createdAt),
     index('orders_status_delivered_idx').on(table.status, table.deliveredAt),
     index('orders_phone_idx').on(table.customerPhone),
+    index('orders_phone_normalized_idx').on(table.customerPhoneNormalized),
     check('orders_subtotal_nonnegative', sql`${table.subtotal} >= 0`),
     check('orders_shipping_nonnegative', sql`${table.shippingFee} >= 0`),
     check('orders_total_nonnegative', sql`${table.total} >= 0`),
