@@ -13,6 +13,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
+    if (response.headersSent || response.writableEnded || response.destroyed) {
+      // Ignore late exceptions after a serverless response timed out or closed.
+      return;
+    }
     const databaseError = this.databaseError(exception);
     const status = databaseError
       ? databaseError.status

@@ -11,7 +11,6 @@ export type VercelRequest = IncomingMessage & {
 };
 
 let appPromise: Promise<INestApplication> | undefined;
-let abortedAppCleanup: Promise<void> | undefined;
 
 export async function closeServerlessAppForTests(): Promise<void> {
   const currentApp = appPromise;
@@ -22,17 +21,7 @@ export async function closeServerlessAppForTests(): Promise<void> {
   await app.close();
 }
 
-async function resetServerlessAppAfterAbort(): Promise<void> {
-  abortedAppCleanup ??= closeServerlessAppForTests()
-    .catch(() => undefined)
-    .finally(() => {
-      abortedAppCleanup = undefined;
-    });
-  await abortedAppCleanup;
-}
-
 async function getHandler(): Promise<NodeHandler> {
-  if (abortedAppCleanup) await abortedAppCleanup;
   appPromise ??= createApp().then(async (app) => {
     await app.init();
     return app;
@@ -135,7 +124,12 @@ export default async function handler(
       request,
     );
     if (completion === 'closed' || requestAborted) {
-      if (!response.writableEnded) {
+      // Do not write to a disconnected response or after Nest has sent headers.
+      if (!requestAborted && !response.destroyed && !response.writableEnded) {
+        if (response.headersSent) {
+          response.end();
+          return;
+        }
         response.statusCode = 504;
         response.setHeader('cache-control', 'no-store');
         response.setHeader('content-type', 'application/json; charset=utf-8');
@@ -146,7 +140,6 @@ export default async function handler(
           }),
         );
       }
-      await resetServerlessAppAfterAbort();
     }
   } finally {
     request.off('aborted', onRequestAborted);
