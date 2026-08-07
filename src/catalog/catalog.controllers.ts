@@ -325,8 +325,9 @@ export class PublicBrandsController {
   @Get()
   @Header(
     'Cache-Control',
-    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+    'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
   )
+  @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse({ type: BrandPageResponseDto })
   list(@Query() query: ListQueryDto) {
     return this.catalog.listPublicBrands(query);
@@ -341,8 +342,9 @@ export class PublicCategoriesController {
   @Get()
   @Header(
     'Cache-Control',
-    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+    'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
   )
+  @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse({ type: CategoryPageResponseDto })
   list(@Query() query: ListQueryDto) {
     return this.catalog.listPublicCategories(query);
@@ -357,8 +359,9 @@ export class PublicAttributesController {
   @Get()
   @Header(
     'Cache-Control',
-    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+    'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
   )
+  @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse({ type: AttributePageResponseDto })
   list(@Query() query: ListQueryDto) {
     return this.catalog.listPublicAttributes(query);
