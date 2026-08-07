@@ -79,15 +79,10 @@ export class DashboardService {
       lt(orders.deliveredAt, to),
     );
     const day = sql<string>`to_char(${orders.deliveredAt} at time zone ${input.timezone}, 'YYYY-MM-DD')`;
-    const [
-      totals,
-      daily,
-      customers,
-      lowStock,
-      lowStockProducts,
-      topProducts,
-      recentOrders,
-    ] = await Promise.all([
+    // Keep the dashboard below the serverless database pool limit. The admin
+    // shell loads auth, catalogue and dashboard data together; running all
+    // seven dashboard queries at once can starve those navigation requests.
+    const [totals, daily, customers] = await Promise.all([
       database
         .select({
           revenue: sql<string>`coalesce(sum(${orders.subtotal}), 0)`,
@@ -117,6 +112,13 @@ export class DashboardService {
         })
         .from(orders)
         .where(isNotNull(orders.customerPhoneNormalized)),
+    ]);
+    const [
+      lowStock,
+      lowStockProducts,
+      topProducts,
+      recentOrders,
+    ] = await Promise.all([
       database
         .select({ value: count() })
         .from(products)
