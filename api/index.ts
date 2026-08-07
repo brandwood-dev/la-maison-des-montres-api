@@ -11,14 +11,39 @@ export type VercelRequest = IncomingMessage & {
 };
 
 let appPromise: Promise<INestApplication> | undefined;
+let appCleanupPromise: Promise<void> | undefined;
 
-export async function closeServerlessAppForTests(): Promise<void> {
+async function disposeApp(currentApp: Promise<INestApplication>): Promise<void> {
+  try {
+    const app = await currentApp;
+    await app.close();
+  } catch {
+    // A timed-out request may already have torn down part of the app. The
+    // next invocation must still be allowed to create a clean instance.
+  }
+}
+
+function recycleServerlessApp(): void {
   const currentApp = appPromise;
   appPromise = undefined;
   if (!currentApp) return;
 
-  const app = await currentApp;
-  await app.close();
+  // Do not make the 504 response wait for shutdown. Queue cleanup so only one
+  // pool is closed at a time while the next request gets a fresh app/pool.
+  appCleanupPromise = (appCleanupPromise ?? Promise.resolve()).then(() =>
+    disposeApp(currentApp),
+  );
+}
+
+export async function closeServerlessAppForTests(): Promise<void> {
+  const currentApp = appPromise;
+  appPromise = undefined;
+  if (currentApp) {
+    appCleanupPromise = (appCleanupPromise ?? Promise.resolve()).then(() =>
+      disposeApp(currentApp),
+    );
+  }
+  await appCleanupPromise;
 }
 
 async function getHandler(): Promise<NodeHandler> {
@@ -128,6 +153,7 @@ export default async function handler(
       if (!requestAborted && !response.destroyed && !response.writableEnded) {
         if (response.headersSent) {
           response.end();
+          recycleServerlessApp();
           return;
         }
         response.statusCode = 504;
@@ -140,6 +166,7 @@ export default async function handler(
           }),
         );
       }
+      recycleServerlessApp();
     }
   } finally {
     request.off('aborted', onRequestAborted);
