@@ -141,6 +141,14 @@ export class ProductListQueryDto extends ListQueryDto {
 }
 
 export class PublicProductListQueryDto extends ListQueryDto {
+  /** Public catalogue pages stay bounded so one request cannot load the full catalogue. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(48)
+  pageSize = 24;
+
   @IsOptional()
   @IsUUID()
   brandId?: string;

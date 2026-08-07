@@ -297,8 +297,9 @@ export class PublicProductsController {
   @Get()
   @Header(
     'Cache-Control',
-    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+    'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
   )
+  @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse()
   list(@Query() query: PublicProductListQueryDto) {
     return this.catalog.listPublicProducts(query);
@@ -307,8 +308,9 @@ export class PublicProductsController {
   @Get(':slug')
   @Header(
     'Cache-Control',
-    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+    'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
   )
+  @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse()
   get(@Param('slug') slug: string) {
     return this.catalog.getPublicProduct(slug);

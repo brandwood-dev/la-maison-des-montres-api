@@ -485,19 +485,20 @@ export class DrizzleCatalogRepository implements CatalogRepository {
         : input.sortBy === 'name'
           ? products.name
           : products.createdAt;
-    const rows = await database
-      .select()
-      .from(products)
-      .where(where)
-      .orderBy(
-        input.sortOrder === 'desc' ? desc(orderColumn) : asc(orderColumn),
-      )
-      .limit(input.pageSize)
-      .offset((input.page - 1) * input.pageSize);
-    const totalRows = await database
-      .select({ value: count() })
-      .from(products)
-      .where(where);
+    // The page and total are independent reads. Run them together so the
+    // public endpoint does not pay two sequential database round trips.
+    const [rows, totalRows] = await Promise.all([
+      database
+        .select()
+        .from(products)
+        .where(where)
+        .orderBy(
+          input.sortOrder === 'desc' ? desc(orderColumn) : asc(orderColumn),
+        )
+        .limit(input.pageSize)
+        .offset((input.page - 1) * input.pageSize),
+      database.select({ value: count() }).from(products).where(where),
+    ]);
     const data = await this.withRelations(rows);
     return this.page(data, input, totalRows[0]?.value ?? 0);
   }
