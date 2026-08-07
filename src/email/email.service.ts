@@ -1,9 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { and, eq, isNull, lt, ne, or, sql } from 'drizzle-orm';
+import { DATABASE } from '../database/database.constants';
+import type { AppDatabase } from '../database/database.types';
+import { orderNotificationDeliveries } from '../database/schema';
 import type { PublicOrderResponse } from '../orders/orders.service';
 
 const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
 const EMAIL_TIMEOUT_MS = 7_000;
+const DELIVERY_RETRY_AFTER_MS = 60_000;
 
 export interface TeamInvitationEmail {
   email: string;
@@ -17,22 +22,49 @@ export interface TeamInvitationEmail {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Inject(DATABASE) private readonly database: AppDatabase | null,
+  ) {}
 
-  async notifyNewOrder(order: PublicOrderResponse): Promise<void> {
+  async notifyNewOrder(
+    order: PublicOrderResponse,
+    dynamicRecipients: string[] = [],
+  ): Promise<void> {
     const apiKey = this.config.get<string>('BREVO_API_KEY');
     const senderEmail = this.config.get<string>('BREVO_SENDER_EMAIL');
-    const recipientEmail = this.config.get<string>('ORDER_NOTIFICATION_EMAIL');
-    if (!apiKey || !senderEmail || !recipientEmail) {
+    const fallbackRecipient = this.config.get<string>(
+      'ORDER_NOTIFICATION_EMAIL',
+    );
+    const recipients = uniqueEmails([
+      ...dynamicRecipients,
+      ...(fallbackRecipient ? [fallbackRecipient] : []),
+    ]);
+    if (!apiKey || !senderEmail || recipients.length === 0) {
       this.logger.warn(
         'Brevo notification skipped: email configuration is incomplete',
       );
       return;
     }
 
+    await Promise.all(
+      recipients.map((recipientEmail) =>
+        this.sendOrderNotification(order, senderEmail, apiKey, recipientEmail),
+      ),
+    );
+  }
+
+  private async sendOrderNotification(
+    order: PublicOrderResponse,
+    senderEmail: string,
+    apiKey: string,
+    recipientEmail: string,
+  ): Promise<void> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), EMAIL_TIMEOUT_MS);
     try {
+      if (!(await this.claimDelivery(order.id, recipientEmail))) return;
+
       const response = await fetch(BREVO_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -46,15 +78,131 @@ export class EmailService {
       if (!response.ok) {
         throw new Error(`Brevo returned HTTP ${response.status}`);
       }
+      await this.markDeliverySent(order.id, recipientEmail);
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'unknown error';
+      try {
+        await this.markDeliveryFailed(order.id, recipientEmail, message);
+      } catch (ledgerError) {
+        this.logger.warn(
+          `Order email delivery ledger update failed for ${recipientEmail}: ${
+            ledgerError instanceof Error ? ledgerError.message : 'unknown error'
+          }`,
+        );
+      }
       this.logger.warn(
-        `Brevo notification failed for order ${order.reference}: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
+        `Brevo notification failed for order ${order.reference}: ${message}`,
       );
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private async claimDelivery(
+    orderId: string,
+    recipientEmail: string,
+  ): Promise<boolean> {
+    if (!this.database) return true;
+
+    const now = new Date();
+    const [created] = await this.database
+      .insert(orderNotificationDeliveries)
+      .values({
+        orderId,
+        recipientEmail,
+        status: 'pending',
+        attempts: 1,
+        lastAttemptAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing()
+      .returning({ id: orderNotificationDeliveries.id });
+    if (created) return true;
+
+    const [existing] = await this.database
+      .select({
+        id: orderNotificationDeliveries.id,
+        status: orderNotificationDeliveries.status,
+        lastAttemptAt: orderNotificationDeliveries.lastAttemptAt,
+      })
+      .from(orderNotificationDeliveries)
+      .where(
+        and(
+          eq(orderNotificationDeliveries.orderId, orderId),
+          sql`lower(${orderNotificationDeliveries.recipientEmail}) = ${recipientEmail}`,
+        ),
+      )
+      .limit(1);
+    if (!existing || existing.status === 'sent') return false;
+
+    const retryAt = new Date(now.getTime() - DELIVERY_RETRY_AFTER_MS);
+    const retryable =
+      existing.status === 'failed' ||
+      !existing.lastAttemptAt ||
+      existing.lastAttemptAt <= retryAt;
+    if (!retryable) return false;
+
+    const [claimed] = await this.database
+      .update(orderNotificationDeliveries)
+      .set({
+        status: 'pending',
+        attempts: sql`${orderNotificationDeliveries.attempts} + 1`,
+        lastAttemptAt: now,
+        lastError: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orderNotificationDeliveries.id, existing.id),
+          ne(orderNotificationDeliveries.status, 'sent'),
+          or(
+            eq(orderNotificationDeliveries.status, 'failed'),
+            isNull(orderNotificationDeliveries.lastAttemptAt),
+            lt(orderNotificationDeliveries.lastAttemptAt, retryAt),
+          ),
+        ),
+      )
+      .returning({ id: orderNotificationDeliveries.id });
+    return Boolean(claimed);
+  }
+
+  private async markDeliverySent(
+    orderId: string,
+    recipientEmail: string,
+  ): Promise<void> {
+    if (!this.database) return;
+    const now = new Date();
+    await this.database
+      .update(orderNotificationDeliveries)
+      .set({ status: 'sent', sentAt: now, lastError: null, updatedAt: now })
+      .where(
+        and(
+          eq(orderNotificationDeliveries.orderId, orderId),
+          sql`lower(${orderNotificationDeliveries.recipientEmail}) = ${recipientEmail}`,
+        ),
+      );
+  }
+
+  private async markDeliveryFailed(
+    orderId: string,
+    recipientEmail: string,
+    error: string,
+  ): Promise<void> {
+    if (!this.database) return;
+    await this.database
+      .update(orderNotificationDeliveries)
+      .set({
+        status: 'failed',
+        lastError: error.slice(0, 500),
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(orderNotificationDeliveries.orderId, orderId),
+          sql`lower(${orderNotificationDeliveries.recipientEmail}) = ${recipientEmail}`,
+        ),
+      );
   }
 
   async sendTeamInvitation(input: TeamInvitationEmail): Promise<void> {
@@ -268,5 +416,15 @@ function escapeHtml(value: string): string {
         "'": '&#39;',
         '"': '&quot;',
       })[character] ?? character,
+  );
+}
+
+function uniqueEmails(values: string[]): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value.trim().toLowerCase())
+        .filter((value) => value.length > 0),
+    ),
   );
 }

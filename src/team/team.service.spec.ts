@@ -125,6 +125,39 @@ describe('TeamService', () => {
       } as AuthenticatedRequest),
     ).rejects.toThrow('At least one active super administrator is required');
   });
+
+  it('resolves active order recipients with super-admin priority and opt-out support', async () => {
+    const repository = {
+      listActiveUsersForOrderNotifications: jest.fn().mockResolvedValue([
+        {
+          email: ' Contact@BrandwoodAndCo.com ',
+          role: 'super_admin',
+          notificationPreferences: { newOrder: false },
+        },
+        {
+          email: 'ops@example.test',
+          role: 'operateur',
+          notificationPreferences: { newOrder: true },
+        },
+        {
+          email: 'OPS@example.test',
+          role: 'admin',
+          notificationPreferences: { newOrder: true },
+        },
+        {
+          email: 'silent@example.test',
+          role: 'admin',
+          notificationPreferences: { newOrder: false },
+        },
+      ]),
+    } as unknown as TeamRepository;
+    const service = new TeamService(repository, {} as EmailService);
+
+    await expect(service.listOrderNotificationRecipients()).resolves.toEqual([
+      'contact@brandwoodandco.com',
+      'ops@example.test',
+    ]);
+  });
 });
 
 function invitationRow(): AdminInvitationRow {

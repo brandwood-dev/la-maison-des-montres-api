@@ -47,6 +47,27 @@ export class TeamService {
     };
   }
 
+  /**
+   * Resolve operational order-email recipients from active admin accounts.
+   * Super administrators always receive the alert; other active members can
+   * opt out through their persisted `newOrder` preference.
+   */
+  async listOrderNotificationRecipients(): Promise<string[]> {
+    const users = await this.repository.listActiveUsersForOrderNotifications();
+    return Array.from(
+      new Set(
+        users
+          .filter(
+            (user) =>
+              user.role === 'super_admin' ||
+              user.notificationPreferences?.newOrder !== false,
+          )
+          .map((user) => user.email.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    );
+  }
+
   async invite(input: CreateTeamInvitationDto, request: AuthenticatedRequest) {
     const email = input.email.trim().toLowerCase();
     if (await this.repository.findUserByEmail(email)) {

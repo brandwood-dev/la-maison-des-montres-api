@@ -127,6 +127,13 @@
       "when": 1786075206701,
       "tag": "0017_bright_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786082436170,
+      "tag": "0018_narrow_mulholland_black",
+      "breakpoints": true
     }
   ]
 }

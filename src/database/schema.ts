@@ -76,6 +76,11 @@ export const paymentStatus = appSchema.enum('payment_status', [
   'refunded',
   'failed',
 ]);
+export const emailDeliveryStatus = appSchema.enum('email_delivery_status', [
+  'pending',
+  'sent',
+  'failed',
+]);
 
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
@@ -653,6 +658,38 @@ export const orderStatusHistory = appSchema.table(
   ],
 );
 
+/**
+ * Idempotent delivery ledger for operational order emails. It is deliberately
+ * kept in the private app schema and never exposed through the browser API.
+ */
+export const orderNotificationDeliveries = appSchema.table(
+  'order_notification_deliveries',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    recipientEmail: varchar('recipient_email', { length: 320 }).notNull(),
+    status: emailDeliveryStatus('status').default('pending').notNull(),
+    attempts: integer('attempts').default(0).notNull(),
+    lastAttemptAt: timestamp('last_attempt_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'date' }),
+    lastError: varchar('last_error', { length: 500 }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('order_notification_deliveries_order_recipient_unique').on(
+      table.orderId,
+      sql`lower(${table.recipientEmail})`,
+    ),
+    index('order_notification_deliveries_order_idx').on(table.orderId),
+    index('order_notification_deliveries_status_idx').on(table.status),
+  ],
+);
+
 export type AdminUserRow = typeof adminUsers.$inferSelect;
 export type AdminSessionRow = typeof adminSessions.$inferSelect;
 export type AdminInvitationRow = typeof adminInvitations.$inferSelect;
@@ -669,3 +706,5 @@ export type StoreSettingsRow = typeof storeSettings.$inferSelect;
 export type OrderRow = typeof orders.$inferSelect;
 export type OrderItemRow = typeof orderItems.$inferSelect;
 export type OrderStatusHistoryRow = typeof orderStatusHistory.$inferSelect;
+export type OrderNotificationDeliveryRow =
+  typeof orderNotificationDeliveries.$inferSelect;

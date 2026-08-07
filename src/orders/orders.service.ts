@@ -11,6 +11,7 @@ import { and, asc, count, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import { DATABASE } from '../database/database.constants';
 import type { AppDatabase } from '../database/database.types';
 import { EmailService } from '../email/email.service';
+import { TeamService } from '../team/team.service';
 import {
   SettingsService,
   type StoreSettingsResponse,
@@ -161,6 +162,7 @@ export class OrdersService {
     @Inject(DATABASE) private readonly database: AppDatabase | null,
     private readonly email: EmailService,
     private readonly settings: SettingsService,
+    private readonly team: TeamService,
   ) {}
 
   async create(input: CreateOrderDto): Promise<PublicOrderResponse> {
@@ -270,7 +272,14 @@ export class OrdersService {
         return { order, items: storedItems, history: [] };
       });
       const response = this.toResponse(stored, productsById);
-      await this.email.notifyNewOrder(response);
+      let recipients: string[] = [];
+      try {
+        recipients = await this.team.listOrderNotificationRecipients();
+      } catch {
+        // Keep order creation independent from an unavailable team lookup;
+        // EmailService will use the configured operational fallback address.
+      }
+      await this.email.notifyNewOrder(response, recipients);
       return response;
     } catch (error) {
       // A concurrent retry may win the idempotency race. Return its order

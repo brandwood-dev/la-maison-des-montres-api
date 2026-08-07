@@ -16,6 +16,9 @@ import { TEAM_REPOSITORY } from './team.constants';
 
 export interface TeamRepository {
   listUsers(): Promise<AdminUserRow[]>;
+  listActiveUsersForOrderNotifications(): Promise<
+    Array<Pick<AdminUserRow, 'email' | 'role' | 'notificationPreferences'>>
+  >;
   listPendingInvitations(): Promise<AdminInvitationRow[]>;
   findUserByEmail(email: string): Promise<AdminUserRow | null>;
   findUserById(id: string): Promise<AdminUserRow | null>;
@@ -57,6 +60,19 @@ export class DrizzleTeamRepository implements TeamRepository {
       .select()
       .from(adminUsers)
       .orderBy(desc(adminUsers.createdAt));
+  }
+
+  async listActiveUsersForOrderNotifications(): Promise<
+    Array<Pick<AdminUserRow, 'email' | 'role' | 'notificationPreferences'>>
+  > {
+    return this.getDatabase()
+      .select({
+        email: adminUsers.email,
+        role: adminUsers.role,
+        notificationPreferences: adminUsers.notificationPreferences,
+      })
+      .from(adminUsers)
+      .where(eq(adminUsers.status, 'active'));
   }
 
   async listPendingInvitations(): Promise<AdminInvitationRow[]> {
