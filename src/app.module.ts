@@ -25,6 +25,7 @@ import { SearchModule } from './search/search.module';
 import { TestimonialsModule } from './testimonials/testimonials.module';
 import { SettingsModule } from './settings/settings.module';
 import { FeedsModule } from './feeds/feeds.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { FeedsModule } from './feeds/feeds.module';
     TestimonialsModule,
     SettingsModule,
     FeedsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [

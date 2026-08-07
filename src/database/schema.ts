@@ -115,6 +115,32 @@ export const adminUsers = appSchema.table(
   ],
 );
 
+/**
+ * Per-admin read markers for the derived notification feed. Notifications
+ * are built from orders/products, while this table keeps only the user's
+ * acknowledgement so it remains stable across navigation and devices.
+ */
+export const adminNotificationReads = appSchema.table(
+  'admin_notification_reads',
+  {
+    adminUserId: uuid('admin_user_id')
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: 'cascade' }),
+    notificationKey: varchar('notification_key', { length: 255 }).notNull(),
+    readAt: timestamp('read_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.adminUserId, table.notificationKey] }),
+    index('admin_notification_reads_admin_idx').on(table.adminUserId),
+    index('admin_notification_reads_read_at_idx').on(table.readAt),
+  ],
+);
+
 export const adminSessions = appSchema.table(
   'admin_sessions',
   {
