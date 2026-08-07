@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -294,12 +295,20 @@ export class PublicProductsController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get()
+  @Header(
+    'Cache-Control',
+    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+  )
   @ApiOkResponse()
   list(@Query() query: PublicProductListQueryDto) {
     return this.catalog.listPublicProducts(query);
   }
 
   @Get(':slug')
+  @Header(
+    'Cache-Control',
+    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+  )
   @ApiOkResponse()
   get(@Param('slug') slug: string) {
     return this.catalog.getPublicProduct(slug);
@@ -312,6 +321,10 @@ export class PublicBrandsController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get()
+  @Header(
+    'Cache-Control',
+    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+  )
   @ApiOkResponse({ type: BrandPageResponseDto })
   list(@Query() query: ListQueryDto) {
     return this.catalog.listPublicBrands(query);
@@ -324,6 +337,10 @@ export class PublicCategoriesController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get()
+  @Header(
+    'Cache-Control',
+    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+  )
   @ApiOkResponse({ type: CategoryPageResponseDto })
   list(@Query() query: ListQueryDto) {
     return this.catalog.listPublicCategories(query);
@@ -336,6 +353,10 @@ export class PublicAttributesController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get()
+  @Header(
+    'Cache-Control',
+    'public, max-age=0, s-maxage=15, stale-while-revalidate=60',
+  )
   @ApiOkResponse({ type: AttributePageResponseDto })
   list(@Query() query: ListQueryDto) {
     return this.catalog.listPublicAttributes(query);
