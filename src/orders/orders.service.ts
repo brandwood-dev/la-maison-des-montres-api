@@ -29,6 +29,10 @@ import type {
   ListOrdersQueryDto,
   OrderItemDto,
 } from './dto/create-order.dto';
+import {
+  allowedOrderStatusTransitions,
+  type OrderStatus,
+} from './order-status';
 
 type ProductSnapshot = {
   id: string;
@@ -359,6 +363,7 @@ export class OrdersService {
   ): Promise<AdminOrderResponse> {
     const database = this.getDatabase();
     const current = await this.get(id);
+    if (current.status === nextStatus) return current;
     const allowed = this.allowedStatusTransitions(current.status);
     if (!allowed.includes(nextStatus)) {
       throw new BadRequestException({
@@ -370,12 +375,7 @@ export class OrdersService {
       .update(orders)
       .set({
         status: nextStatus,
-        deliveredAt:
-          nextStatus === 'delivered'
-            ? new Date()
-            : current.deliveredAt
-              ? new Date(current.deliveredAt)
-              : null,
+        deliveredAt: nextStatus === 'delivered' ? new Date() : null,
         updatedAt: new Date(),
       })
       .where(eq(orders.id, id))
@@ -562,23 +562,8 @@ export class OrdersService {
     };
   }
 
-  private allowedStatusTransitions(
-    status: AdminOrderResponse['status'],
-  ): AdminOrderResponse['status'][] {
-    const transitions: Record<
-      AdminOrderResponse['status'],
-      AdminOrderResponse['status'][]
-    > = {
-      new: ['to_confirm', 'cancelled'],
-      to_confirm: ['confirmed', 'cancelled'],
-      confirmed: ['preparing', 'cancelled'],
-      preparing: ['shipped', 'cancelled'],
-      shipped: ['delivered', 'returned'],
-      delivered: ['returned'],
-      cancelled: [],
-      returned: [],
-    };
-    return transitions[status];
+  private allowedStatusTransitions(status: OrderStatus): OrderStatus[] {
+    return allowedOrderStatusTransitions(status);
   }
 
   private toResponse(

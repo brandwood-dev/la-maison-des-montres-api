@@ -14,17 +14,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-
-export const ORDER_STATUSES = [
-  'new',
-  'to_confirm',
-  'confirmed',
-  'preparing',
-  'shipped',
-  'delivered',
-  'cancelled',
-  'returned',
-] as const;
+import { ORDER_STATUSES } from '../order-status';
 
 export class OrderItemDto {
   @IsUUID()
