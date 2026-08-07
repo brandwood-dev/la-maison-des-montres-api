@@ -601,7 +601,10 @@ export class CatalogService {
     };
   }
 
-  private async attributeResponses(rows: AttributeRow[], activeValuesOnly = false) {
+  private async attributeResponses(
+    rows: AttributeRow[],
+    activeValuesOnly = false,
+  ) {
     const values = this.repository.listAttributeValuesByAttributeIds
       ? await this.repository.listAttributeValuesByAttributeIds(
           rows.map((row) => row.id),
@@ -717,7 +720,9 @@ export class CatalogService {
   }
 
   private async publicProductResponse(product: ProductDetail) {
-    const adminProduct = await this.productResponse(product);
+    const brand =
+      product.enrichment?.brand ?? (await this.brandRow(product.brandId));
+    const effective = this.isPromotionEffective(product);
     const publicAttributes = [];
     const attributesById = new Map(
       (product.enrichment?.attributes ?? []).map((attribute) => [
@@ -766,39 +771,38 @@ export class CatalogService {
       categories.filter((item) => item.active).map((item) => item.slug),
     );
     return {
-      id: adminProduct.id,
-      slug: adminProduct.seo.slug,
-      name: adminProduct.name,
-      brand: adminProduct.brand,
-      brandLogoUrl: adminProduct.brandLogoUrl,
-      reference: adminProduct.reference,
+      id: product.id,
+      slug: product.seoSlug,
+      name: product.name,
+      brand: brand.name,
+      brandLogoUrl: brand.logoUrl ?? undefined,
+      reference: product.reference,
       category,
       currency: 'TND' as const,
       regularPriceMillimes:
-        adminProduct.promotion.effective && adminProduct.oldPrice
-          ? adminProduct.oldPrice
-          : adminProduct.price,
+        effective && product.oldPrice ? product.oldPrice : product.price,
       promotion:
-        adminProduct.promotion.effective &&
-        adminProduct.oldPrice &&
-        adminProduct.promotion.endsAt
+        effective && product.oldPrice && product.promotionEndsAt
           ? {
-              regularPriceMillimes: adminProduct.oldPrice,
-              salePriceMillimes: adminProduct.price,
-              startsAt: adminProduct.promotion.startsAt ?? null,
-              endsAt: adminProduct.promotion.endsAt,
+              regularPriceMillimes: product.oldPrice,
+              salePriceMillimes: product.price,
+              startsAt: product.promotionStartsAt?.toISOString() ?? null,
+              endsAt: product.promotionEndsAt.toISOString(),
             }
           : null,
-      availability: adminProduct.available ? 'available' : 'unavailable',
-      images: adminProduct.images.map((image) => ({
+      availability:
+        product.status === 'published' && product.stock > 0
+          ? 'available'
+          : 'unavailable',
+      images: product.images.map((image) => ({
         id: image.id,
         url: image.url,
-        alt: image.alt ?? adminProduct.name,
-        position: image.order + 1,
+        alt: image.alt ?? product.name,
+        position: image.sortOrder + 1,
         ...(publicImageVariants(image.url) ?? {}),
       })),
       attributes: publicAttributes,
-      shortDescription: adminProduct.description,
+      shortDescription: product.description,
       dialColor: null,
       braceletMaterial: null,
       braceletColor: null,
@@ -811,8 +815,8 @@ export class CatalogService {
       giftBoxIncluded: categories.some(
         (item) => item.slug === 'coffrets' || item.slug === 'coffrets-cadeaux',
       ),
-      isNew: adminProduct.isFeatured,
-      isBestSeller: adminProduct.isBestSeller,
+      isNew: product.isFeatured,
+      isBestSeller: product.isBestSeller,
     };
   }
 
