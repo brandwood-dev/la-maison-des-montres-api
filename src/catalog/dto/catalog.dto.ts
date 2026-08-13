@@ -508,6 +508,11 @@ export class CreateProductDto {
   @MaxLength(10_000)
   description!: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(1_000)
+  shortDescription?: string;
+
   @IsInt()
   @Min(0)
   price!: number;
@@ -584,6 +589,11 @@ export class UpdateProductDto {
   @IsString()
   @MaxLength(10_000)
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1_000)
+  shortDescription?: string;
 
   @IsOptional()
   @IsInt()

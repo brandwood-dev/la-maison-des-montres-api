@@ -203,6 +203,9 @@ export class ProductResponseDto {
   @ApiProperty()
   description!: string;
 
+  @ApiPropertyOptional()
+  shortDescription?: string;
+
   @ApiProperty({ type: Number, minimum: 0, description: 'Integer millimes' })
   price!: number;
 

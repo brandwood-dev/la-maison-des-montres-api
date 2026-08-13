@@ -421,6 +421,10 @@ export class CatalogService {
         input.description !== undefined
           ? input.description
           : current.description,
+      shortDescription:
+        input.shortDescription !== undefined
+          ? input.shortDescription.trim()
+          : current.shortDescription ?? current.description,
       price: input.price ?? current.price,
       oldPrice:
         input.oldPrice !== undefined ? input.oldPrice : current.oldPrice,
@@ -542,6 +546,8 @@ export class CatalogService {
       name: input.name.trim(),
       reference,
       description: input.description,
+      shortDescription:
+        input.shortDescription?.trim() || input.description,
       price: input.price,
       oldPrice: input.oldPrice ?? null,
       stock: input.stock ?? 0,
@@ -677,6 +683,8 @@ export class CatalogService {
       brandLogoUrl: brand.logoUrl ?? undefined,
       reference: product.reference,
       description: product.description,
+      shortDescription:
+        product.shortDescription?.trim() || product.description,
       price: product.price,
       oldPrice: product.oldPrice ?? undefined,
       promotion: {
@@ -802,7 +810,9 @@ export class CatalogService {
         ...(publicImageVariants(image.url) ?? {}),
       })),
       attributes: publicAttributes,
-      shortDescription: product.description,
+      shortDescription:
+        product.shortDescription?.trim() || product.description,
+      description: product.description,
       dialColor: null,
       braceletMaterial: null,
       braceletColor: null,

@@ -72,6 +72,7 @@ export interface ProductWrite {
   name: string;
   reference: string;
   description: string;
+  shortDescription?: string | null;
   price: number;
   oldPrice?: number | null;
   stock: number;
@@ -98,7 +99,8 @@ export interface ProductWrite {
   }[];
 }
 
-export interface ProductDetail extends ProductRow {
+export interface ProductDetail extends Omit<ProductRow, 'shortDescription'> {
+  shortDescription?: string | null;
   categoryIds: string[];
   attributes: { attributeId: string; valueIds: string[] }[];
   images: ProductImageRow[];
@@ -555,6 +557,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
           name: input.name,
           reference: input.reference,
           description: input.description,
+          shortDescription: input.shortDescription ?? input.description,
           price: input.price,
           oldPrice: input.oldPrice,
           stock: input.stock,
@@ -798,6 +801,7 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       name: input.name,
       reference: input.reference,
       description: input.description,
+      shortDescription: input.shortDescription,
       price: input.price,
       oldPrice: input.oldPrice,
       stock: input.stock,

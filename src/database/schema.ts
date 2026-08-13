@@ -362,6 +362,7 @@ export const products = appSchema.table(
     name: varchar('name', { length: 240 }).notNull(),
     reference: varchar('reference', { length: 120 }).notNull(),
     description: text('description').notNull(),
+    shortDescription: text('short_description'),
     price: integer('price').notNull(),
     oldPrice: integer('old_price'),
     stock: integer('stock').default(0).notNull(),

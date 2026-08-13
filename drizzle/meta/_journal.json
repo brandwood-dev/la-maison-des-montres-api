@@ -134,6 +134,13 @@
       "when": 1786082436170,
       "tag": "0018_narrow_mulholland_black",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786633487891,
+      "tag": "0019_product_short_description",
+      "breakpoints": true
     }
   ]
 }
