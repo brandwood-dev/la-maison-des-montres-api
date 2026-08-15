@@ -36,7 +36,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) return;
     const value =
       exception && typeof exception === 'object'
-        ? (exception as { name?: unknown; code?: unknown })
+        ? (exception as { name?: unknown; code?: unknown; cause?: unknown })
+        : undefined;
+    const cause =
+      value?.cause && typeof value.cause === 'object'
+        ? (value.cause as { name?: unknown; code?: unknown })
         : undefined;
     const rawMessage = exception instanceof Error ? exception.message : '';
     const message = rawMessage.toLowerCase();
@@ -56,6 +60,8 @@ export class ApiExceptionFilter implements ExceptionFilter {
         type: typeof exception,
         name: typeof value?.name === 'string' ? value.name : 'UnknownError',
         code: typeof value?.code === 'string' ? value.code : undefined,
+        causeName: typeof cause?.name === 'string' ? cause.name : undefined,
+        causeCode: typeof cause?.code === 'string' ? cause.code : undefined,
         category,
         keys:
           exception && typeof exception === 'object'
