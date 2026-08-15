@@ -17,6 +17,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // Ignore late exceptions after a serverless response timed out or closed.
       return;
     }
+    this.logUnexpectedException(exception);
     const databaseError = this.databaseError(exception);
     const status = databaseError
       ? databaseError.status
@@ -29,6 +30,23 @@ export class ApiExceptionFilter implements ExceptionFilter {
     response
       .status(status)
       .json(databaseError?.body ?? this.toBody(raw, status));
+  }
+
+  private logUnexpectedException(exception: unknown): void {
+    if (exception instanceof HttpException) return;
+    const value =
+      exception && typeof exception === 'object'
+        ? (exception as { name?: unknown; code?: unknown })
+        : undefined;
+    // Keep production diagnostics useful without logging SQL, connection
+    // strings, request payloads, or any other potentially sensitive detail.
+    console.error(
+      JSON.stringify({
+        type: typeof exception,
+        name: typeof value?.name === 'string' ? value.name : 'UnknownError',
+        code: typeof value?.code === 'string' ? value.code : undefined,
+      }),
+    );
   }
 
   private databaseError(
