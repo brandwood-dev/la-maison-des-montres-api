@@ -57,6 +57,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
         name: typeof value?.name === 'string' ? value.name : 'UnknownError',
         code: typeof value?.code === 'string' ? value.code : undefined,
         category,
+        keys:
+          exception && typeof exception === 'object'
+            ? Object.keys(exception).slice(0, 20)
+            : [],
+        hasMessage: Boolean(rawMessage),
       }),
     );
   }
