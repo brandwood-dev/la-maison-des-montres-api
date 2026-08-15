@@ -38,6 +38,17 @@ export class ApiExceptionFilter implements ExceptionFilter {
       exception && typeof exception === 'object'
         ? (exception as { name?: unknown; code?: unknown })
         : undefined;
+    const rawMessage = exception instanceof Error ? exception.message : '';
+    const message = rawMessage.toLowerCase();
+    const category = /password|authentication|invalid authorization/.test(message)
+      ? 'database_authentication'
+      : /timeout|timed out|connect|socket|econn|enotfound/.test(message)
+        ? 'database_connection'
+        : /does not exist|undefined table|undefined column/.test(message)
+          ? 'database_schema'
+          : /constraint|foreign key|duplicate|violates/.test(message)
+            ? 'database_constraint'
+            : 'unknown'
     // Keep production diagnostics useful without logging SQL, connection
     // strings, request payloads, or any other potentially sensitive detail.
     console.error(
@@ -45,6 +56,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
         type: typeof exception,
         name: typeof value?.name === 'string' ? value.name : 'UnknownError',
         code: typeof value?.code === 'string' ? value.code : undefined,
+        category,
       }),
     );
   }
