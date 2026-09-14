@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -71,6 +72,8 @@ export class PublicTestimonialsController {
   constructor(private readonly testimonials: TestimonialsService) {}
 
   @Get()
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300')
+  @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse()
   list() {
     return this.testimonials.publicList();

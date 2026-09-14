@@ -30,7 +30,8 @@ export class PublicSettingsController {
 
   @Get()
   @Public()
-  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+  @Header('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=300')
+  @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse()
   get() {
     return this.settings.get();
