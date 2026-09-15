@@ -56,6 +56,13 @@ export class MediaService {
     return this.createUploadTicket(input, 'products');
   }
 
+  async createBrandUploadTicket(
+    input: ProductMediaUploadInput,
+  ): Promise<ProductMediaUploadTicket> {
+    this.validateInput(input, MAX_IMAGE_SIZE);
+    return this.createUploadTicket(input, 'brand-logos');
+  }
+
   async createAdminAvatarUploadTicket(
     input: ProductMediaUploadInput,
   ): Promise<ProductMediaUploadTicket> {

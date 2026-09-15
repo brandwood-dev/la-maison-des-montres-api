@@ -33,6 +33,15 @@ export class MediaController {
     return this.media.createProductUploadTicket(input);
   }
 
+  @Post('brand-upload-url')
+  @RequirePermissions('products.write')
+  @ApiCreatedResponse()
+  createBrandUploadUrl(
+    @Body() input: CreateProductUploadDto,
+  ): Promise<ProductMediaUploadTicket> {
+    return this.media.createBrandUploadTicket(input);
+  }
+
   @Post('avatar-upload-url')
   @ApiCreatedResponse()
   createAvatarUploadUrl(
