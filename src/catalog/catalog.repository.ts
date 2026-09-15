@@ -323,7 +323,12 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       const linkedAttribute = this.getDatabase()
         .select({ attributeId: categoryAttributes.attributeId })
         .from(categoryAttributes)
-        .where(eq(categoryAttributes.categoryId, input.categoryId));
+        .where(
+          and(
+            eq(categoryAttributes.categoryId, input.categoryId),
+            eq(categoryAttributes.attributeId, attributes.id),
+          ),
+        );
       const globalAttribute = this.getDatabase()
         .select({ attributeId: categoryAttributes.attributeId })
         .from(categoryAttributes)
