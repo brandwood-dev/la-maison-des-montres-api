@@ -112,6 +112,12 @@ export class ListQueryDto {
   active?: boolean;
 }
 
+export class AttributeListQueryDto extends ListQueryDto {
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+}
+
 export class ProductListQueryDto extends ListQueryDto {
   @IsOptional()
   @IsUUID()
@@ -375,6 +381,14 @@ export class UpdateAttributeDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+export class UpdateAttributeCategoriesDto {
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  categoryIds!: string[];
 }
 
 export class CreateAttributeValueDto {

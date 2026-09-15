@@ -9,6 +9,7 @@ import {
   count,
   desc,
   eq,
+  exists,
   ilike,
   gte,
   inArray,
@@ -24,6 +25,7 @@ import {
   attributes,
   attributeValues,
   brands,
+  categoryAttributes,
   categories,
   productAttributeValues,
   productCategories,
@@ -46,6 +48,8 @@ export interface PaginationInput {
   sortOrder: 'asc' | 'desc';
   active?: boolean;
   filterable?: boolean;
+  /** Restrict attribute listings to a category when supported. */
+  categoryId?: string;
 }
 
 export interface ProductListInput extends PaginationInput {
@@ -151,6 +155,18 @@ export interface CatalogRepository {
     input: Partial<Omit<AttributeRow, 'id' | 'createdAt' | 'updatedAt'>>,
   ): Promise<AttributeRow | null>;
   deleteAttribute(id: string): Promise<boolean>;
+
+  /** Category scoping is optional for lightweight test repositories. */
+  listAttributeCategoryLinks?: (
+    attributeIds: string[],
+  ) => Promise<
+    { attributeId: string; categoryId: string; sortOrder: number }[]
+  >;
+  listCategoryAttributeIds?: (categoryId: string) => Promise<string[]>;
+  replaceAttributeCategories?: (
+    attributeId: string,
+    categoryIds: string[],
+  ) => Promise<void>;
 
   listAttributeValues(attributeId: string): Promise<AttributeValueRow[]>;
   listAttributeValuesByAttributeIds?: (
@@ -303,6 +319,19 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       conditions.push(eq(attributes.active, input.active));
     if (input.filterable !== undefined)
       conditions.push(eq(attributes.filterable, input.filterable));
+    if (input.categoryId) {
+      const linkedAttribute = this.getDatabase()
+        .select({ attributeId: categoryAttributes.attributeId })
+        .from(categoryAttributes)
+        .where(eq(categoryAttributes.categoryId, input.categoryId));
+      const globalAttribute = this.getDatabase()
+        .select({ attributeId: categoryAttributes.attributeId })
+        .from(categoryAttributes)
+        .where(eq(categoryAttributes.attributeId, attributes.id));
+      conditions.push(
+        sql`(${exists(linkedAttribute)} OR NOT ${exists(globalAttribute)})`,
+      );
+    }
     const orderColumn =
       input.sortBy === 'createdAt'
         ? attributes.createdAt
@@ -345,6 +374,53 @@ export class DrizzleCatalogRepository implements CatalogRepository {
 
   deleteAttribute(id: string): Promise<boolean> {
     return this.deleteOne(attributes, attributes.id, id);
+  }
+
+  async listAttributeCategoryLinks(
+    attributeIds: string[],
+  ): Promise<{ attributeId: string; categoryId: string; sortOrder: number }[]> {
+    if (attributeIds.length === 0) return [];
+    return this.getDatabase()
+      .select({
+        attributeId: categoryAttributes.attributeId,
+        categoryId: categoryAttributes.categoryId,
+        sortOrder: categoryAttributes.sortOrder,
+      })
+      .from(categoryAttributes)
+      .where(inArray(categoryAttributes.attributeId, attributeIds))
+      .orderBy(
+        asc(categoryAttributes.categoryId),
+        asc(categoryAttributes.sortOrder),
+      );
+  }
+
+  async listCategoryAttributeIds(categoryId: string): Promise<string[]> {
+    const rows = await this.getDatabase()
+      .select({ attributeId: categoryAttributes.attributeId })
+      .from(categoryAttributes)
+      .where(eq(categoryAttributes.categoryId, categoryId));
+    return rows.map((row) => row.attributeId);
+  }
+
+  async replaceAttributeCategories(
+    attributeId: string,
+    categoryIds: string[],
+  ): Promise<void> {
+    const database = this.getDatabase();
+    await database.transaction(async (tx) => {
+      await tx
+        .delete(categoryAttributes)
+        .where(eq(categoryAttributes.attributeId, attributeId));
+      if (categoryIds.length > 0) {
+        await tx.insert(categoryAttributes).values(
+          categoryIds.map((categoryId, index) => ({
+            categoryId,
+            attributeId,
+            sortOrder: index,
+          })),
+        );
+      }
+    });
   }
 
   async listAttributeValues(attributeId: string): Promise<AttributeValueRow[]> {

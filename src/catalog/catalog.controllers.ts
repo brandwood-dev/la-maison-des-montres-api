@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Put,
   Post,
   Query,
 } from '@nestjs/common';
@@ -27,10 +28,12 @@ import {
   CreateCategoryDto,
   CreateProductDto,
   ListQueryDto,
+  AttributeListQueryDto,
   ProductListQueryDto,
   PublicProductListQueryDto,
   ReorderCategoriesDto,
   UpdateAttributeDto,
+  UpdateAttributeCategoriesDto,
   UpdateAttributeValueDto,
   UpdateBrandDto,
   UpdateCategoryDto,
@@ -152,7 +155,7 @@ export class AttributesController {
 
   @Get()
   @ApiOkResponse({ type: AttributePageResponseDto })
-  list(@Query() query: ListQueryDto) {
+  list(@Query() query: AttributeListQueryDto) {
     return this.catalog.listAttributes(query);
   }
 
@@ -177,6 +180,16 @@ export class AttributesController {
     @Body() input: UpdateAttributeDto,
   ) {
     return this.catalog.updateAttribute(id, input);
+  }
+
+  @Put(':id/categories')
+  @RequirePermissions('attributes.write')
+  @ApiOkResponse({ type: AttributeResponseDto })
+  updateCategories(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: UpdateAttributeCategoriesDto,
+  ) {
+    return this.catalog.updateAttributeCategories(id, input.categoryIds);
   }
 
   @Delete(':id')
@@ -363,7 +376,7 @@ export class PublicAttributesController {
   )
   @Header('CDN-Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOkResponse({ type: AttributePageResponseDto })
-  list(@Query() query: ListQueryDto) {
+  list(@Query() query: AttributeListQueryDto) {
     return this.catalog.listPublicAttributes(query);
   }
 }

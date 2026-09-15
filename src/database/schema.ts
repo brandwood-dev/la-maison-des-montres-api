@@ -321,6 +321,33 @@ export const attributes = appSchema.table(
   ],
 );
 
+/**
+ * Attributes can be reused by several catalogue categories.  An empty
+ * association set keeps the attribute global, which preserves backwards
+ * compatibility for attributes created before category scoping was added.
+ */
+export const categoryAttributes = appSchema.table(
+  'category_attributes',
+  {
+    categoryId: uuid('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'cascade' }),
+    attributeId: uuid('attribute_id')
+      .notNull()
+      .references(() => attributes.id, { onDelete: 'cascade' }),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.categoryId, table.attributeId] }),
+    index('category_attributes_attribute_idx').on(table.attributeId),
+    index('category_attributes_category_order_idx').on(
+      table.categoryId,
+      table.sortOrder,
+    ),
+  ],
+);
+
 export const attributeValues = appSchema.table(
   'attribute_values',
   {

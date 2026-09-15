@@ -129,6 +129,9 @@ export class AttributeResponseDto {
   @ApiProperty({ minimum: 0 })
   order!: number;
 
+  @ApiProperty({ type: String, format: 'uuid', isArray: true })
+  categoryIds!: string[];
+
   @ApiProperty({ type: AttributeValueResponseDto, isArray: true })
   values!: AttributeValueResponseDto[];
 }

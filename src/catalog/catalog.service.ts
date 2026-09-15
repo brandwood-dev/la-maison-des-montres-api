@@ -21,6 +21,7 @@ import type {
 import type {
   CreateAttributeDto,
   CreateAttributeValueDto,
+  AttributeListQueryDto,
   CreateBrandDto,
   CreateCategoryDto,
   CreateProductDto,
@@ -197,18 +198,20 @@ export class CatalogService {
     return { ...page, data };
   }
 
-  async listPublicAttributes(input: ListQueryDto) {
+  async listPublicAttributes(input: AttributeListQueryDto) {
     const page = await this.repository.listAttributes({
       ...this.pagination(input),
       active: true,
       filterable: true,
+      categoryId: input.categoryId,
     });
     const data = await this.attributeResponses(page.data, true);
     return { ...page, data };
   }
 
   async getAttribute(id: string) {
-    return this.attributeResponse(await this.attributeRow(id));
+    const row = await this.attributeRow(id);
+    return (await this.attributeResponses([row]))[0];
   }
 
   async createAttribute(input: CreateAttributeDto) {
@@ -261,6 +264,18 @@ export class CatalogService {
     if (!(await this.repository.deleteAttribute(id))) {
       throw new NotFoundException('Attribute not found');
     }
+  }
+
+  async updateAttributeCategories(id: string, categoryIds: string[]) {
+    const attribute = await this.attributeRow(id);
+    if (!this.repository.replaceAttributeCategories) {
+      throw new BadRequestException('Category scoping is not available');
+    }
+    await Promise.all(categoryIds.map((categoryId) => this.categoryRow(categoryId)));
+    await this.repository.replaceAttributeCategories(attribute.id, [
+      ...new Set(categoryIds),
+    ]);
+    return (await this.attributeResponses([attribute]))[0];
   }
 
   async listAttributeValues(attributeId: string) {
@@ -611,6 +626,15 @@ export class CatalogService {
     rows: AttributeRow[],
     activeValuesOnly = false,
   ) {
+    const categoryLinks = this.repository.listAttributeCategoryLinks
+      ? await this.repository.listAttributeCategoryLinks(rows.map((row) => row.id))
+      : [];
+    const categoryIdsByAttribute = new Map<string, string[]>();
+    for (const link of categoryLinks) {
+      const ids = categoryIdsByAttribute.get(link.attributeId) ?? [];
+      ids.push(link.categoryId);
+      categoryIdsByAttribute.set(link.attributeId, ids);
+    }
     const values = this.repository.listAttributeValuesByAttributeIds
       ? await this.repository.listAttributeValuesByAttributeIds(
           rows.map((row) => row.id),
@@ -629,11 +653,12 @@ export class CatalogService {
           row,
           this.repository.listAttributeValuesByAttributeIds
             ? (valuesByAttribute.get(row.id) ?? [])
-            : activeValuesOnly
+              : activeValuesOnly
               ? (await this.repository.listAttributeValues(row.id)).filter(
                   (value) => value.active,
                 )
               : undefined,
+          categoryIdsByAttribute.get(row.id) ?? [],
         ),
       ),
     );
@@ -643,6 +668,7 @@ export class CatalogService {
   private async attributeResponse(
     row: AttributeRow,
     prefetchedValues?: AttributeValueRow[],
+    categoryIds: string[] = [],
   ) {
     const values =
       prefetchedValues ?? (await this.repository.listAttributeValues(row.id));
@@ -654,6 +680,7 @@ export class CatalogService {
       visibleInFilters: row.filterable,
       active: row.active,
       order: row.sortOrder,
+      categoryIds,
       values: values.map((value) => this.attributeValueResponse(value)),
     };
   }
@@ -1051,7 +1078,7 @@ export class CatalogService {
     return slugs.map((slug) => aliases[slug]).find(Boolean) ?? 'men';
   }
 
-  private pagination(input: ListQueryDto): PaginationInput {
+  private pagination(input: ListQueryDto & { categoryId?: string }): PaginationInput {
     const [sortBy, parsedOrder] = input.sort?.split(':') ?? [];
     return {
       page: input.page,
@@ -1063,6 +1090,7 @@ export class CatalogService {
           ? parsedOrder
           : input.sortOrder,
       active: input.active,
+      categoryId: input.categoryId,
     };
   }
 
