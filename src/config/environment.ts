@@ -11,8 +11,16 @@ export const environmentSchema = Joi.object({
     otherwise: Joi.string().uri().required(),
   }),
   DATABASE_DIRECT_URL: Joi.string().uri().optional(),
-  SUPABASE_URL: Joi.string().uri().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: Joi.string().min(20).optional(),
+  SUPABASE_URL: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().uri().required(),
+    otherwise: Joi.string().uri().optional(),
+  }),
+  SUPABASE_SERVICE_ROLE_KEY: Joi.when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().min(20).required(),
+    otherwise: Joi.string().min(20).allow('').optional(),
+  }),
   SUPABASE_STORAGE_BUCKET: Joi.string()
     .pattern(/^[a-z0-9][a-z0-9._-]{1,62}$/)
     .default('product-media'),

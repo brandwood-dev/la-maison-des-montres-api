@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Logger,
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -16,6 +17,11 @@ const ALLOWED_IMAGE_TYPES = new Set([
   'image/webp',
   'image/avif',
 ]);
+
+type StorageBucket = ReturnType<SupabaseClient['storage']['from']>;
+type SignedUploadResult = Awaited<
+  ReturnType<StorageBucket['createSignedUploadUrl']>
+>;
 
 export type ProductMediaUploadInput = {
   fileName: string;
@@ -39,6 +45,7 @@ export type ProductMediaUploadTicket = {
 @Injectable()
 export class MediaService {
   private client: SupabaseClient | null = null;
+  private readonly logger = new Logger(MediaService.name);
 
   constructor(private readonly config: ConfigService) {}
 
@@ -79,11 +86,20 @@ export class MediaService {
     const extension = this.extensionFor(input.contentType);
     const key = `${prefix}/${randomUUID()}${extension}`;
     const storage = this.getClient().storage.from(bucket);
-    const { data, error } = await storage.createSignedUploadUrl(key, {
-      upsert: false,
+    const { data, error } = await this.createSignedUploadUrl(storage, key, {
+      bucket,
+      prefix,
     });
 
     if (error || !data) {
+      this.logger.error(
+        JSON.stringify({
+          event: 'media_upload_ticket_failed',
+          bucket,
+          prefix,
+          provider: this.storageErrorSummary(error),
+        }),
+      );
       throw new ServiceUnavailableException(
         'Impossible de préparer le stockage image',
       );
@@ -100,6 +116,87 @@ export class MediaService {
       headers: { 'content-type': input.contentType },
       expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
       ...(variants ?? {}),
+    };
+  }
+
+  private async createSignedUploadUrl(
+    storage: StorageBucket,
+    key: string,
+    context: { bucket: string; prefix: string },
+  ): Promise<SignedUploadResult> {
+    let result: SignedUploadResult | undefined;
+    let failure: unknown;
+
+    // Storage can briefly reject requests while Supabase or a Render instance
+    // is waking up. Retry only transient failures; never repeat a permanent
+    // configuration or validation error.
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        result = await storage.createSignedUploadUrl(key, { upsert: false });
+        failure = result.error;
+      } catch (error) {
+        failure = error;
+      }
+
+      if (
+        result?.data ||
+        !this.isTransientStorageError(failure) ||
+        attempt === 2
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+
+    if (result) return result;
+
+    this.logger.error(
+      JSON.stringify({
+        event: 'media_upload_ticket_provider_exception',
+        bucket: context.bucket,
+        prefix: context.prefix,
+        provider: this.storageErrorSummary(failure),
+      }),
+    );
+
+    // Keep the public API contract stable while allowing the caller to return
+    // the same sanitized 503 response for thrown provider/network errors.
+    return {
+      data: null,
+      error: failure,
+    } as SignedUploadResult;
+  }
+
+  private isTransientStorageError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return true;
+    const value = error as { statusCode?: unknown; status?: unknown };
+    const status = Number(value.statusCode ?? value.status);
+    return (
+      !Number.isFinite(status) ||
+      status === 408 ||
+      status === 429 ||
+      status >= 500
+    );
+  }
+
+  private storageErrorSummary(error: unknown): Record<string, unknown> {
+    if (!error || typeof error !== 'object') {
+      return { type: typeof error };
+    }
+    const value = error as {
+      name?: unknown;
+      statusCode?: unknown;
+      status?: unknown;
+      message?: unknown;
+    };
+    const message =
+      typeof value.message === 'string'
+        ? value.message.replace(/https?:\/\/\S+/gi, '[url]').slice(0, 160)
+        : undefined;
+    return {
+      name: typeof value.name === 'string' ? value.name : undefined,
+      statusCode: value.statusCode ?? value.status,
+      message,
     };
   }
 
