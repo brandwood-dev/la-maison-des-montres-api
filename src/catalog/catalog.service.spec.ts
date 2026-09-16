@@ -202,6 +202,43 @@ describe('CatalogService', () => {
     });
   });
 
+  it('exposes the real primary category for non-watch products', async () => {
+    const brand = await service.createBrand({ name: 'Dior' });
+    const category = await service.createCategory({
+      name: 'Parfum Femme',
+      slug: 'parfum-femme',
+    });
+    await service.createProduct({
+      name: 'Miss Dior',
+      brandId: brand.id,
+      reference: 'DIOR-PARFUM-001',
+      description: 'Une fragrance florale.',
+      price: 450000,
+      stock: 1,
+      status: 'published',
+      categoryIds: [category.id],
+      images: [],
+      attributes: [],
+    });
+
+    const page = await service.listPublicProducts({
+      page: 1,
+      pageSize: 10,
+      sortOrder: 'asc',
+    });
+
+    expect(page.data[0]).toMatchObject({
+      primaryCategory: {
+        id: category.id,
+        name: 'Parfum Femme',
+        slug: 'parfum-femme',
+      },
+      categories: [
+        expect.objectContaining({ id: category.id, slug: 'parfum-femme' }),
+      ],
+    });
+  });
+
   it('regenerates automatic SEO after an edit while keeping the SKU stable', async () => {
     const brand = await service.createBrand({ name: 'Rabanne' });
     const product = await service.createProduct({

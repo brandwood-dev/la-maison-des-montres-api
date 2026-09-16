@@ -887,9 +887,20 @@ export class CatalogService {
       : await Promise.all(
           product.categoryIds.map((id) => this.categoryRow(id)),
         );
-    const category = this.publicCategory(
-      categories.filter((item) => item.active).map((item) => item.slug),
-    );
+    const activeCategories = categories
+      .filter((item) => item.active)
+      .slice()
+      .sort(
+        (a, b) =>
+          a.sortOrder - b.sortOrder ||
+          a.name.localeCompare(b.name, 'fr') ||
+          a.id.localeCompare(b.id),
+      );
+    const primaryCategory = activeCategories[0];
+    // `category` remains the legacy watch-family field while the storefront
+    // migrates to the real category metadata below. Unknown categories must
+    // never affect the canonical URL or breadcrumb.
+    const category = this.publicCategory(activeCategories.map((item) => item.slug));
     return {
       id: product.id,
       slug: product.seoSlug,
@@ -898,6 +909,10 @@ export class CatalogService {
       brandLogoUrl: brand.logoUrl ?? undefined,
       reference: product.reference,
       category,
+      categories: activeCategories.map((item) => this.publicCategoryRef(item)),
+      ...(primaryCategory
+        ? { primaryCategory: this.publicCategoryRef(primaryCategory) }
+        : {}),
       currency: 'TND' as const,
       regularPriceMillimes:
         effective && product.oldPrice ? product.oldPrice : product.price,
@@ -1182,6 +1197,16 @@ export class CatalogService {
       'montres-connectees': 'connected',
     };
     return slugs.map((slug) => aliases[slug]).find(Boolean) ?? 'men';
+  }
+
+  private publicCategoryRef(row: CategoryRow) {
+    return {
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      parentId: row.parentId,
+      order: row.sortOrder,
+    };
   }
 
   private pagination(
