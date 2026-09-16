@@ -271,7 +271,9 @@ export class CatalogService {
     if (!this.repository.replaceAttributeCategories) {
       throw new BadRequestException('Category scoping is not available');
     }
-    await Promise.all(categoryIds.map((categoryId) => this.categoryRow(categoryId)));
+    await Promise.all(
+      categoryIds.map((categoryId) => this.categoryRow(categoryId)),
+    );
     await this.repository.replaceAttributeCategories(attribute.id, [
       ...new Set(categoryIds),
     ]);
@@ -439,7 +441,7 @@ export class CatalogService {
       shortDescription:
         input.shortDescription !== undefined
           ? input.shortDescription.trim()
-          : current.shortDescription ?? current.description,
+          : (current.shortDescription ?? current.description),
       price: input.price ?? current.price,
       oldPrice:
         input.oldPrice !== undefined ? input.oldPrice : current.oldPrice,
@@ -478,6 +480,26 @@ export class CatalogService {
           mediaKey: image.mediaKey,
           sortOrder: image.sortOrder,
         })),
+      variants:
+        input.variants !== undefined
+          ? input.variants.map((variant, index) => ({
+              id: variant.id,
+              label: variant.label.trim(),
+              price: variant.price,
+              oldPrice: variant.oldPrice ?? null,
+              stock: variant.stock ?? 0,
+              active: variant.active ?? true,
+              sortOrder: variant.order ?? index,
+            }))
+          : current.variants?.map((variant) => ({
+              id: variant.id,
+              label: variant.label,
+              price: variant.price,
+              oldPrice: variant.oldPrice,
+              stock: variant.stock,
+              active: variant.active,
+              sortOrder: variant.sortOrder,
+            })),
     };
     this.validatePromotion(merged);
     await this.validateProduct(merged);
@@ -539,6 +561,35 @@ export class CatalogService {
         }
       }
     }
+
+    if (input.variants !== undefined) {
+      const labels = new Set<string>();
+      for (const variant of input.variants) {
+        const label = variant.label.trim();
+        if (!label) throw new BadRequestException('Variant label is required');
+        const normalized = label.toLocaleLowerCase();
+        if (labels.has(normalized)) {
+          throw new BadRequestException(
+            'Variant labels must be unique per product',
+          );
+        }
+        labels.add(normalized);
+        if (variant.price < 0 || variant.stock < 0) {
+          throw new BadRequestException(
+            'Variant price and stock cannot be negative',
+          );
+        }
+        if (
+          variant.oldPrice !== null &&
+          variant.oldPrice !== undefined &&
+          variant.oldPrice <= variant.price
+        ) {
+          throw new BadRequestException(
+            'Variant oldPrice must be greater than price',
+          );
+        }
+      }
+    }
   }
 
   private async productInput(input: CreateProductDto): Promise<ProductWrite> {
@@ -561,8 +612,7 @@ export class CatalogService {
       name: input.name.trim(),
       reference,
       description: input.description,
-      shortDescription:
-        input.shortDescription?.trim() || input.description,
+      shortDescription: input.shortDescription?.trim() || input.description,
       price: input.price,
       oldPrice: input.oldPrice ?? null,
       stock: input.stock ?? 0,
@@ -585,6 +635,15 @@ export class CatalogService {
         mediaProvider: image.mediaProvider ?? null,
         mediaKey: image.mediaKey ?? null,
         sortOrder: image.order ?? 0,
+      })),
+      variants: input.variants?.map((variant, index) => ({
+        id: variant.id,
+        label: variant.label.trim(),
+        price: variant.price,
+        oldPrice: variant.oldPrice ?? null,
+        stock: variant.stock ?? 0,
+        active: variant.active ?? true,
+        sortOrder: variant.order ?? index,
       })),
     } satisfies ProductWrite;
   }
@@ -627,7 +686,9 @@ export class CatalogService {
     activeValuesOnly = false,
   ) {
     const categoryLinks = this.repository.listAttributeCategoryLinks
-      ? await this.repository.listAttributeCategoryLinks(rows.map((row) => row.id))
+      ? await this.repository.listAttributeCategoryLinks(
+          rows.map((row) => row.id),
+        )
       : [];
     const categoryIdsByAttribute = new Map<string, string[]>();
     for (const link of categoryLinks) {
@@ -653,7 +714,7 @@ export class CatalogService {
           row,
           this.repository.listAttributeValuesByAttributeIds
             ? (valuesByAttribute.get(row.id) ?? [])
-              : activeValuesOnly
+            : activeValuesOnly
               ? (await this.repository.listAttributeValues(row.id)).filter(
                   (value) => value.active,
                 )
@@ -710,8 +771,7 @@ export class CatalogService {
       brandLogoUrl: brand.logoUrl ?? undefined,
       reference: product.reference,
       description: product.description,
-      shortDescription:
-        product.shortDescription?.trim() || product.description,
+      shortDescription: product.shortDescription?.trim() || product.description,
       price: product.price,
       oldPrice: product.oldPrice ?? undefined,
       promotion: {
@@ -740,6 +800,16 @@ export class CatalogService {
       })),
       categoryIds: product.categoryIds,
       attributes: product.attributes,
+      variants: (product.variants ?? []).map((variant) => ({
+        id: variant.id,
+        label: variant.label,
+        price: variant.price,
+        oldPrice: variant.oldPrice ?? undefined,
+        stock: variant.stock,
+        active: variant.active,
+        available: variant.active && variant.stock > 0,
+        order: variant.sortOrder,
+      })),
       status: product.status,
       seo: {
         slug: product.seoSlug,
@@ -837,8 +907,19 @@ export class CatalogService {
         ...(publicImageVariants(image.url) ?? {}),
       })),
       attributes: publicAttributes,
-      shortDescription:
-        product.shortDescription?.trim() || product.description,
+      variants: (product.variants ?? [])
+        .filter((variant) => variant.active)
+        .map((variant) => ({
+          id: variant.id,
+          label: variant.label,
+          price: variant.price,
+          oldPrice: variant.oldPrice ?? undefined,
+          stock: variant.stock,
+          active: variant.active,
+          available: variant.stock > 0,
+          order: variant.sortOrder,
+        })),
+      shortDescription: product.shortDescription?.trim() || product.description,
       description: product.description,
       dialColor: null,
       braceletMaterial: null,
@@ -1078,7 +1159,9 @@ export class CatalogService {
     return slugs.map((slug) => aliases[slug]).find(Boolean) ?? 'men';
   }
 
-  private pagination(input: ListQueryDto & { categoryId?: string }): PaginationInput {
+  private pagination(
+    input: ListQueryDto & { categoryId?: string },
+  ): PaginationInput {
     const [sortBy, parsedOrder] = input.sort?.split(':') ?? [];
     return {
       page: input.page,

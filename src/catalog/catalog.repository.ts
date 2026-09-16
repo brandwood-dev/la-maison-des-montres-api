@@ -30,6 +30,7 @@ import {
   productAttributeValues,
   productCategories,
   productImages,
+  productVariants,
   products,
   type AttributeRow,
   type AttributeValueRow,
@@ -37,6 +38,7 @@ import {
   type CategoryRow,
   type ProductImageRow,
   type ProductRow,
+  type ProductVariantRow,
 } from '../database/schema';
 import type { ProductStatus } from './dto/catalog.dto';
 
@@ -101,6 +103,15 @@ export interface ProductWrite {
     mediaKey?: string | null;
     sortOrder?: number;
   }[];
+  variants?: {
+    id?: string;
+    label: string;
+    price: number;
+    oldPrice?: number | null;
+    stock: number;
+    active: boolean;
+    sortOrder?: number;
+  }[];
 }
 
 export interface ProductDetail extends Omit<ProductRow, 'shortDescription'> {
@@ -108,6 +119,7 @@ export interface ProductDetail extends Omit<ProductRow, 'shortDescription'> {
   categoryIds: string[];
   attributes: { attributeId: string; valueIds: string[] }[];
   images: ProductImageRow[];
+  variants?: ProductVariantRow[];
   /**
    * Optional read-model enrichment populated by the SQL repository.
    * Keeping it optional preserves the lightweight fake repository used by
@@ -689,28 +701,34 @@ export class DrizzleCatalogRepository implements CatalogRepository {
 
     const database = this.getDatabase();
     const productIds = rows.map((row) => row.id);
-    const [categoryRows, assignmentRows, imageRows] = await Promise.all([
-      database
-        .select({
-          productId: productCategories.productId,
-          categoryId: productCategories.categoryId,
-        })
-        .from(productCategories)
-        .where(inArray(productCategories.productId, productIds)),
-      database
-        .select({
-          productId: productAttributeValues.productId,
-          attributeId: productAttributeValues.attributeId,
-          valueId: productAttributeValues.valueId,
-        })
-        .from(productAttributeValues)
-        .where(inArray(productAttributeValues.productId, productIds)),
-      database
-        .select()
-        .from(productImages)
-        .where(inArray(productImages.productId, productIds))
-        .orderBy(asc(productImages.sortOrder)),
-    ]);
+    const [categoryRows, assignmentRows, imageRows, variantRows] =
+      await Promise.all([
+        database
+          .select({
+            productId: productCategories.productId,
+            categoryId: productCategories.categoryId,
+          })
+          .from(productCategories)
+          .where(inArray(productCategories.productId, productIds)),
+        database
+          .select({
+            productId: productAttributeValues.productId,
+            attributeId: productAttributeValues.attributeId,
+            valueId: productAttributeValues.valueId,
+          })
+          .from(productAttributeValues)
+          .where(inArray(productAttributeValues.productId, productIds)),
+        database
+          .select()
+          .from(productImages)
+          .where(inArray(productImages.productId, productIds))
+          .orderBy(asc(productImages.sortOrder)),
+        database
+          .select()
+          .from(productVariants)
+          .where(inArray(productVariants.productId, productIds))
+          .orderBy(asc(productVariants.sortOrder), asc(productVariants.label)),
+      ]);
 
     const categoryIds = [...new Set(categoryRows.map((row) => row.categoryId))];
     const attributeIds = [
@@ -768,6 +786,13 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       imagesByProduct.set(image.productId, images);
     }
 
+    const variantsByProduct = new Map<string, ProductVariantRow[]>();
+    for (const variant of variantRows) {
+      const variants = variantsByProduct.get(variant.productId) ?? [];
+      variants.push(variant);
+      variantsByProduct.set(variant.productId, variants);
+    }
+
     const brandById = new Map(brandRows.map((row) => [row.id, row]));
     const categoryById = new Map(categoryMetadata.map((row) => [row.id, row]));
     const attributeById = new Map(
@@ -809,20 +834,39 @@ export class DrizzleCatalogRepository implements CatalogRepository {
       }
     }
 
-    return rows.map((row) => ({
-      ...row,
-      categoryIds: categoriesByProduct.get(row.id) ?? [],
-      attributes: [
-        ...(assignmentsByProduct.get(row.id) ?? new Map<string, string[]>()),
-      ].map(([attributeId, valueIds]) => ({ attributeId, valueIds })),
-      images: imagesByProduct.get(row.id) ?? [],
-      enrichment: {
-        brand: brandById.get(row.brandId),
-        categories: categoriesMetadataByProduct.get(row.id) ?? [],
-        attributes: attributesMetadataByProduct.get(row.id) ?? [],
-        values: valuesMetadataByProduct.get(row.id) ?? [],
-      },
-    }));
+    return rows.map((row) => {
+      const variants = variantsByProduct.get(row.id) ?? [];
+      const activeVariants = variants.filter((variant) => variant.active);
+      const aggregateStock = activeVariants.reduce(
+        (sum, variant) => sum + variant.stock,
+        0,
+      );
+      const lowestPrice = activeVariants.reduce(
+        (lowest, variant) => Math.min(lowest, variant.price),
+        Number.POSITIVE_INFINITY,
+      );
+      return {
+        ...row,
+        ...(variants.length > 0
+          ? {
+              price: Number.isFinite(lowestPrice) ? lowestPrice : row.price,
+              stock: aggregateStock,
+            }
+          : {}),
+        categoryIds: categoriesByProduct.get(row.id) ?? [],
+        attributes: [
+          ...(assignmentsByProduct.get(row.id) ?? new Map<string, string[]>()),
+        ].map(([attributeId, valueIds]) => ({ attributeId, valueIds })),
+        images: imagesByProduct.get(row.id) ?? [],
+        variants,
+        enrichment: {
+          brand: brandById.get(row.brandId),
+          categories: categoriesMetadataByProduct.get(row.id) ?? [],
+          attributes: attributesMetadataByProduct.get(row.id) ?? [],
+          values: valuesMetadataByProduct.get(row.id) ?? [],
+        },
+      };
+    });
   }
 
   private async replaceProductRelations(
@@ -868,6 +912,25 @@ export class DrizzleCatalogRepository implements CatalogRepository {
             mediaProvider: image.mediaProvider ?? null,
             mediaKey: image.mediaKey ?? null,
             sortOrder: image.sortOrder ?? 0,
+          })),
+        );
+      }
+    }
+    if (input.variants !== undefined) {
+      await tx
+        .delete(productVariants)
+        .where(eq(productVariants.productId, productId));
+      if (input.variants.length) {
+        await tx.insert(productVariants).values(
+          input.variants.map((variant, index) => ({
+            ...(variant.id ? { id: variant.id } : {}),
+            productId,
+            label: variant.label,
+            price: variant.price,
+            oldPrice: variant.oldPrice ?? null,
+            stock: variant.stock,
+            active: variant.active,
+            sortOrder: variant.sortOrder ?? index,
           })),
         );
       }

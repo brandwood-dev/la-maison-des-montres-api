@@ -20,6 +20,10 @@ export class OrderItemDto {
   @IsUUID()
   productId!: string;
 
+  @IsOptional()
+  @IsUUID()
+  variantId?: string;
+
   @Type(() => Number)
   @IsInt()
   @Min(1)

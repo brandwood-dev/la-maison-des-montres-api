@@ -523,6 +523,50 @@ export const productImages = appSchema.table(
 );
 
 /**
+ * Optional sellable variants for products such as perfumes (for example
+ * 30 ml / 50 ml / 100 ml). A product with no rows here keeps using the
+ * legacy price and stock columns, so existing watches remain unchanged.
+ */
+export const productVariants = appSchema.table(
+  'product_variants',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    productId: uuid('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    label: varchar('label', { length: 120 }).notNull(),
+    price: integer('price').notNull(),
+    oldPrice: integer('old_price'),
+    stock: integer('stock').default(0).notNull(),
+    active: boolean('active').default(true).notNull(),
+    sortOrder: integer('sort_order').default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('product_variants_product_label_unique').on(
+      table.productId,
+      sql`lower(${table.label})`,
+    ),
+    index('product_variants_product_order_idx').on(
+      table.productId,
+      table.active,
+      table.sortOrder,
+    ),
+    check('product_variants_price_nonnegative', sql`${table.price} >= 0`),
+    check(
+      'product_variants_old_price_nonnegative',
+      sql`${table.oldPrice} is null or ${table.oldPrice} >= 0`,
+    ),
+    check('product_variants_stock_nonnegative', sql`${table.stock} >= 0`),
+    check(
+      'product_variants_old_price_greater',
+      sql`${table.oldPrice} is null or ${table.oldPrice} > ${table.price}`,
+    ),
+    check('product_variants_order_nonnegative', sql`${table.sortOrder} >= 0`),
+  ],
+);
+
+/**
  * Curated testimonials managed by the back-office and displayed on the
  * storefront. Customer-submitted reviews remain a separate future module.
  */
@@ -567,7 +611,9 @@ export const storeSettings = appSchema.table('store_settings', {
   identityLogoUrl: text('identity_logo_url'),
   identityLogoLightUrl: text('identity_logo_light_url'),
   shippingFeeMillimes: integer('shipping_fee_millimes').default(8000).notNull(),
-  freeShippingEnabled: boolean('free_shipping_enabled').default(false).notNull(),
+  freeShippingEnabled: boolean('free_shipping_enabled')
+    .default(false)
+    .notNull(),
   freeShippingThresholdMillimes: integer('free_shipping_threshold_millimes'),
   currency: varchar('currency', { length: 3 }).default('TND').notNull(),
   supportEmail: varchar('support_email', { length: 320 }),
@@ -637,6 +683,10 @@ export const orderItems = appSchema.table(
     productId: uuid('product_id')
       .notNull()
       .references(() => products.id, { onDelete: 'restrict' }),
+    variantId: uuid('variant_id').references(() => productVariants.id, {
+      onDelete: 'set null',
+    }),
+    variantLabel: varchar('variant_label', { length: 120 }),
     name: varchar('name', { length: 240 }).notNull(),
     reference: varchar('reference', { length: 120 }).notNull(),
     imageUrl: text('image_url'),
@@ -729,6 +779,7 @@ export type AttributeRow = typeof attributes.$inferSelect;
 export type AttributeValueRow = typeof attributeValues.$inferSelect;
 export type ProductRow = typeof products.$inferSelect;
 export type ProductImageRow = typeof productImages.$inferSelect;
+export type ProductVariantRow = typeof productVariants.$inferSelect;
 export type TestimonialRow = typeof testimonials.$inferSelect;
 export type StoreSettingsRow = typeof storeSettings.$inferSelect;
 export type OrderRow = typeof orders.$inferSelect;

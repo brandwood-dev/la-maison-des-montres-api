@@ -22,6 +22,7 @@ import {
   orderStatusHistory,
   orders,
   productImages,
+  productVariants,
   products,
   type OrderItemRow,
   type OrderRow,
@@ -49,6 +50,8 @@ type ProductSnapshot = {
   status: 'draft' | 'published' | 'hidden';
   imageUrl: string | null;
   imageAlt: string;
+  variantId?: string;
+  variantLabel?: string;
 };
 
 type StoredOrder = {
@@ -78,6 +81,8 @@ export type PublicOrderResponse = {
   };
   items: Array<{
     productId: string;
+    variantId?: string;
+    variantLabel?: string;
     name: string;
     brand: string;
     reference: string;
@@ -118,6 +123,8 @@ export type AdminOrderResponse = {
   items: Array<{
     id: string;
     productId: string;
+    variantId?: string;
+    variantLabel?: string;
     name: string;
     reference: string;
     imageUrl?: string;
@@ -179,7 +186,9 @@ export class OrdersService {
       this.settings.get(),
     ]);
     const lines = items.map((item) => {
-      const product = productsById.get(item.productId);
+      const product = productsById.get(
+        item.variantId ? `${item.productId}:${item.variantId}` : item.productId,
+      );
       if (!product || product.status !== 'published' || product.stock <= 0) {
         throw new UnprocessableEntityException({
           code: 'PRODUCT_UNAVAILABLE',
@@ -253,6 +262,12 @@ export class OrdersService {
             lines.map((line) => ({
               orderId: order.id,
               productId: line.product.id,
+              ...(line.product.variantId
+                ? { variantId: line.product.variantId }
+                : {}),
+              ...(line.product.variantLabel
+                ? { variantLabel: line.product.variantLabel }
+                : {}),
               name: line.product.name,
               reference: line.product.reference,
               imageUrl: line.product.imageUrl,
@@ -468,13 +483,14 @@ export class OrdersService {
   private normalizeItems(items: OrderItemDto[]): OrderItemDto[] {
     const seen = new Set<string>();
     for (const item of items) {
-      if (seen.has(item.productId)) {
+      const key = `${item.productId}:${item.variantId ?? ''}`;
+      if (seen.has(key)) {
         throw new BadRequestException({
           code: 'DUPLICATE_PRODUCT',
           message: 'Each product may appear only once in an order',
         });
       }
-      seen.add(item.productId);
+      seen.add(key);
     }
     return items;
   }
@@ -520,6 +536,43 @@ export class OrdersService {
         imageUrl: row.imageUrl ?? null,
         imageAlt: row.imageAlt ?? row.name,
       });
+    }
+    const variantRows = await database
+      .select()
+      .from(productVariants)
+      .where(inArray(productVariants.productId, ids))
+      .orderBy(asc(productVariants.sortOrder), asc(productVariants.label));
+    const variantsByProduct = new Map<string, typeof variantRows>();
+    for (const variant of variantRows) {
+      variantsByProduct.set(variant.productId, [
+        ...(variantsByProduct.get(variant.productId) ?? []),
+        variant,
+      ]);
+    }
+    for (const [productId, variants] of variantsByProduct) {
+      const base = snapshots.get(productId);
+      if (!base) continue;
+      for (const variant of variants.filter((item) => item.active)) {
+        snapshots.set(`${productId}:${variant.id}`, {
+          ...base,
+          price: variant.price,
+          stock: variant.stock,
+          variantId: variant.id,
+          variantLabel: variant.label,
+        });
+      }
+      // Product cards may add a product without a selected variant. Resolve
+      // that legacy line to the first active in-stock variant.
+      const fallback = variants.find((item) => item.active && item.stock > 0);
+      if (fallback) {
+        snapshots.set(productId, {
+          ...base,
+          price: fallback.price,
+          stock: fallback.stock,
+          variantId: fallback.id,
+          variantLabel: fallback.label,
+        });
+      }
     }
     return snapshots;
   }
@@ -592,10 +645,7 @@ export class OrdersService {
       .where(inArray(orderStatusHistory.orderId, orderIds))
       .orderBy(desc(orderStatusHistory.createdAt));
     for (const row of rows) {
-      grouped.set(row.orderId, [
-        ...(grouped.get(row.orderId) ?? []),
-        row,
-      ]);
+      grouped.set(row.orderId, [...(grouped.get(row.orderId) ?? []), row]);
     }
     return grouped;
   }
@@ -610,6 +660,8 @@ export class OrdersService {
       items: stored.items.map((item) => ({
         id: item.id,
         productId: item.productId,
+        ...(item.variantId ? { variantId: item.variantId } : {}),
+        ...(item.variantLabel ? { variantLabel: item.variantLabel } : {}),
         name: item.name,
         reference: item.reference,
         ...(item.imageUrl ? { imageUrl: item.imageUrl } : {}),
@@ -670,6 +722,8 @@ export class OrdersService {
       const snapshot = snapshots.get(item.productId);
       return {
         productId: item.productId,
+        ...(item.variantId ? { variantId: item.variantId } : {}),
+        ...(item.variantLabel ? { variantLabel: item.variantLabel } : {}),
         name: item.name,
         brand: snapshot?.brand ?? '',
         reference: item.reference,

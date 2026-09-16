@@ -184,6 +184,32 @@ export class ProductPromotionResponseDto {
   discountPct?: number;
 }
 
+export class ProductVariantResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  label!: string;
+
+  @ApiProperty({ description: 'Integer millimes' })
+  price!: number;
+
+  @ApiPropertyOptional({ description: 'Integer millimes' })
+  oldPrice?: number;
+
+  @ApiProperty()
+  stock!: number;
+
+  @ApiProperty()
+  active!: boolean;
+
+  @ApiProperty()
+  available!: boolean;
+
+  @ApiProperty()
+  order!: number;
+}
+
 export class ProductResponseDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -253,6 +279,9 @@ export class ProductResponseDto {
     isArray: true,
   })
   attributes!: ProductAttributeAssignmentResponseDto[];
+
+  @ApiProperty({ type: ProductVariantResponseDto, isArray: true })
+  variants!: ProductVariantResponseDto[];
 
   @ApiProperty({ enum: productStatuses })
   status!: (typeof productStatuses)[number];
