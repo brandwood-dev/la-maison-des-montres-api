@@ -422,13 +422,26 @@ export class CatalogService {
       name,
       brandName: brand.name,
       categoryName: categories[0]?.name,
+      shortDescription:
+        input.shortDescription !== undefined
+          ? input.shortDescription
+          : (current.shortDescription ?? undefined),
+      description:
+        input.description !== undefined
+          ? input.description
+          : current.description,
       input: input.seo,
       current,
     });
     const reference =
-      input.reference?.trim() ||
-      current.reference ||
-      (await this.generateProductReference(brand.slug, categories[0]?.slug));
+      input.regenerateReference === true
+        ? await this.generateProductReference(brand.slug, categories[0]?.slug)
+        : input.reference?.trim() ||
+          current.reference ||
+          (await this.generateProductReference(
+            brand.slug,
+            categories[0]?.slug,
+          ));
     await this.assertReferenceAvailable(reference, id);
     const merged: ProductWrite = {
       brandId,
@@ -601,6 +614,8 @@ export class CatalogService {
       name: input.name.trim(),
       brandName: brand.name,
       categoryName: categories[0]?.name,
+      shortDescription: input.shortDescription,
+      description: input.description,
       input: input.seo,
     });
     const reference =
@@ -953,6 +968,8 @@ export class CatalogService {
     name: string;
     brandName: string;
     categoryName?: string;
+    shortDescription?: string;
+    description?: string;
     input?: CreateProductDto['seo'];
     current?: ProductDetail;
   }): Promise<
@@ -995,7 +1012,9 @@ export class CatalogService {
     const seoTitle = titleCustom
       ? seoInput?.title?.trim() || current?.seoTitle || null
       : this.truncateAtWord(
-          `${input.name} – ${input.brandName} | La Maison des Montres`,
+          `${input.name} – ${input.brandName}${
+            input.categoryName ? ` ${input.categoryName}` : ''
+          } | La Maison des Montres`,
           255,
         );
     const generatedDescription = this.generateMetaDescription(input);
@@ -1017,12 +1036,18 @@ export class CatalogService {
     name: string;
     brandName: string;
     categoryName?: string;
+    shortDescription?: string;
+    description?: string;
   }): string {
     const category = input.categoryName
-      ? ` de catégorie ${input.categoryName}`
+      ? ` (${input.categoryName.toLocaleLowerCase()})`
       : '';
+    const summary = (input.shortDescription ?? input.description ?? '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const productSummary = summary ? ` ${summary}` : '';
     return this.truncateAtWord(
-      `Découvrez la montre ${input.name} de ${input.brandName}${category} chez La Maison des Montres. Livraison en Tunisie et paiement à la livraison.`,
+      `Découvrez ${input.name} de ${input.brandName}${category} chez La Maison des Montres.${productSummary} Livraison en Tunisie et paiement à la livraison.`,
       160,
     );
   }

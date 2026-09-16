@@ -640,6 +640,14 @@ export class UpdateProductDto {
   @MaxLength(120)
   reference?: string;
 
+  /**
+   * References are stable SKUs by default. Regeneration is an explicit,
+   * destructive catalogue action because it can invalidate external feeds.
+   */
+  @IsOptional()
+  @IsBoolean()
+  regenerateReference?: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(10_000)

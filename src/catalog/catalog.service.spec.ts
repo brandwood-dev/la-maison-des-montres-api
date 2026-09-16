@@ -134,9 +134,9 @@ describe('CatalogService', () => {
     await expect(service.deleteAttribute(attribute.id)).rejects.toBeInstanceOf(
       ConflictException,
     );
-    await expect(
-      service.deleteAttributeValue(steel.id),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.deleteAttributeValue(steel.id)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     await expect(
       service.updateAttribute(attribute.id, { type: 'multiselect' }),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -200,5 +200,56 @@ describe('CatalogService', () => {
       brand: 'Logo Brand',
       brandLogoUrl: 'https://cdn.example.com/logo.svg',
     });
+  });
+
+  it('regenerates automatic SEO after an edit while keeping the SKU stable', async () => {
+    const brand = await service.createBrand({ name: 'Rabanne' });
+    const product = await service.createProduct({
+      name: 'Ancien parfum test',
+      brandId: brand.id,
+      reference: 'LMM-LEGACY-000001',
+      description: 'Ancienne description',
+      shortDescription: 'Ancien résumé',
+      price: 250000,
+      seo: {
+        slug: 'ancien-parfum-test',
+        slugCustom: true,
+        titleCustom: true,
+        descriptionCustom: true,
+        title: 'Ancien titre',
+        description: 'Ancienne description SEO',
+      },
+      categoryIds: [],
+      images: [],
+      attributes: [],
+    });
+
+    const updated = await service.updateProduct(product.id, {
+      name: 'Eau de Toilette Homme 1 Million',
+      shortDescription: 'Une fragrance boisée et élégante pour homme.',
+      description: 'Une fragrance boisée aux notes ambrées.',
+      seo: {
+        slugCustom: false,
+        titleCustom: false,
+        descriptionCustom: false,
+      },
+    });
+
+    expect(updated.reference).toBe('LMM-LEGACY-000001');
+    expect(updated.seo).toMatchObject({
+      slug: 'eau-de-toilette-homme-1-million',
+      title:
+        'Eau de Toilette Homme 1 Million – Rabanne | La Maison des Montres',
+      description: expect.stringContaining('Eau de Toilette Homme 1 Million'),
+      slugCustom: false,
+      titleCustom: false,
+      descriptionCustom: false,
+    });
+    expect(updated.seo.description).toContain('fragrance boisée');
+
+    const regenerated = await service.updateProduct(updated.id, {
+      regenerateReference: true,
+    });
+    expect(regenerated.reference).toMatch(/^LMM-RABANN-GEN-/);
   });
 });
