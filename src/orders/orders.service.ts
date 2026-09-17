@@ -38,6 +38,7 @@ import {
   allowedOrderStatusTransitions,
   type OrderStatus,
 } from './order-status';
+import { MetaConversionsService } from '../meta/meta-conversions.service';
 
 type ProductSnapshot = {
   id: string;
@@ -170,6 +171,7 @@ export class OrdersService {
     private readonly email: EmailService,
     private readonly settings: SettingsService,
     private readonly team: TeamService,
+    private readonly meta: MetaConversionsService,
   ) {}
 
   async create(input: CreateOrderDto): Promise<PublicOrderResponse> {
@@ -179,7 +181,15 @@ export class OrdersService {
       database,
       input.idempotencyKey,
     );
-    if (existing) return this.toResponse(existing);
+    if (existing) {
+      const response = this.toResponse(existing);
+      // Reusing the same event_id is safe if a previous delivery was
+      // interrupted; Meta deduplicates the retry by order reference.
+      // Analytics is fail-open and must not add Meta network latency to a
+      // checkout response. The service itself handles errors and timeouts.
+      void this.meta.sendPurchase(response);
+      return response;
+    }
 
     const [productsById, settings] = await Promise.all([
       this.loadProducts(database, items),
@@ -295,6 +305,9 @@ export class OrdersService {
         // EmailService will use the configured operational fallback address.
       }
       await this.email.notifyNewOrder(response, recipients);
+      // Analytics is fail-open and must not add Meta network latency to a
+      // checkout response. The service itself handles errors and timeouts.
+      void this.meta.sendPurchase(response);
       return response;
     } catch (error) {
       // A concurrent retry may win the idempotency race. Return its order

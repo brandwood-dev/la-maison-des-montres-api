@@ -52,6 +52,9 @@ cp .env.example .env
 - `BREVO_API_KEY` : clé API Brevo serveur uniquement
 - `BREVO_SENDER_EMAIL` : expéditeur Brevo vérifié
 - `BREVO_SENDER_NAME` : nom affiché par l’expéditeur
+- `META_PIXEL_ID` : identifiant du Pixel Meta (par défaut `1659246991836575`)
+- `META_CONVERSIONS_API_ACCESS_TOKEN` : jeton Conversions API Meta, serveur uniquement
+- `META_CONVERSIONS_API_VERSION` : version Graph API utilisée (par défaut `v22.0`)
 - `ADMIN_PUBLIC_URL` : URL publique de l’espace Admin utilisée pour les liens
   d’invitation (obligatoire en production)
 - `CLOUDFLARE_ACCOUNT_ID` : identifiant du compte Cloudflare (serveur uniquement)

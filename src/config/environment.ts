@@ -35,6 +35,11 @@ export const environmentSchema = Joi.object({
     otherwise: Joi.string().email().allow('').optional(),
   }),
   BREVO_SENDER_NAME: Joi.string().max(120).default('La Maison des Montres'),
+  META_PIXEL_ID: Joi.string().pattern(/^\d+$/).default('1659246991836575'),
+  META_CONVERSIONS_API_ACCESS_TOKEN: Joi.string().min(20).allow('').optional(),
+  META_CONVERSIONS_API_VERSION: Joi.string()
+    .pattern(/^v\d+\.\d+$/)
+    .default('v22.0'),
   ADMIN_PUBLIC_URL: Joi.when('NODE_ENV', {
     is: 'production',
     then: Joi.string()

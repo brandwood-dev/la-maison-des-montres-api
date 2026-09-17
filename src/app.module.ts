@@ -26,6 +26,7 @@ import { TestimonialsModule } from './testimonials/testimonials.module';
 import { SettingsModule } from './settings/settings.module';
 import { FeedsModule } from './feeds/feeds.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MetaModule } from './meta/meta.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     SettingsModule,
     FeedsModule,
     NotificationsModule,
+    MetaModule,
   ],
   controllers: [AppController],
   providers: [

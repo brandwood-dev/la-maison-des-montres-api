@@ -83,7 +83,10 @@ export class MetaFeedService {
     return FEED_HEADERS.map((header) => {
       switch (header) {
         case 'id':
-          return this.csv(product.id);
+          // Keep the feed id identical to Pixel/CAPI content_ids. Product
+          // UUIDs are stable across edits and variants are grouped below the
+          // same catalogue item.
+          return this.csv(this.catalogId(product));
         case 'title':
           return this.csv(product.name);
         case 'description':
@@ -133,6 +136,10 @@ export class MetaFeedService {
       this.config.get<string>('PUBLIC_SITE_URL') ??
       'https://lamaisondesmontres.com';
     return value.replace(/\/+$/, '');
+  }
+
+  private catalogId(product: ProductDetail): string {
+    return product.id;
   }
 
   private price(millimes: number): string {
