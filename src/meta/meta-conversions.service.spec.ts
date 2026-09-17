@@ -147,4 +147,25 @@ describe('MetaConversionsService', () => {
     expect(payload.data[0].user_data.client_ip_address).toBe('192.0.2.10');
     expect(payload.data[0].user_data.client_user_agent).toBe('Mozilla/5.0');
   });
+
+  it('does not relay events sourced from another website', async () => {
+    const service = new MetaConversionsService(
+      new ConfigService({ META_CONVERSIONS_API_ACCESS_TOKEN: 'a'.repeat(40) }),
+    );
+
+    await service.relay(
+      {
+        eventName: 'PageView',
+        eventId: 'lmm-pageview-invalid-origin',
+        eventSourceUrl: 'https://example.com/pretend-store',
+      },
+      {
+        headers: {},
+        ip: '192.0.2.1',
+        get: () => undefined,
+      } as unknown as Request,
+    );
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });

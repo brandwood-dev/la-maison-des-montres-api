@@ -6,6 +6,10 @@ import type { PublicOrderResponse } from '../orders/orders.service';
 import type { MetaEventDto, MetaRelayableEvent } from './meta-conversions.dto';
 
 const META_API_TIMEOUT_MS = 4_000;
+const META_SITE_HOSTS = new Set([
+  'lamaisondesmontres.com',
+  'www.lamaisondesmontres.com',
+]);
 
 type MetaContent = {
   id: string;
@@ -73,6 +77,10 @@ export class MetaConversionsService {
 
   /** Relays non-purchase browser events with the same event_id as fbq. */
   async relay(input: MetaEventDto, request: Request): Promise<void> {
+    // The route is intentionally public for browser beacons, but it must not
+    // become an open relay for arbitrary websites once the CAPI token is set.
+    if (!this.isAllowedEventSourceUrl(input.eventSourceUrl)) return;
+
     const eventName: MetaRelayableEvent = input.eventName;
     const event: MetaEvent = {
       event_name: eventName,
@@ -138,6 +146,16 @@ export class MetaConversionsService {
     const value = Array.isArray(forwarded) ? forwarded[0] : forwarded;
     const first = value?.split(',')[0]?.trim();
     return first || request.ip || undefined;
+  }
+
+  private isAllowedEventSourceUrl(value?: string): boolean {
+    if (!value) return true;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && META_SITE_HOSTS.has(url.hostname);
+    } catch {
+      return false;
+    }
   }
 
   private hash(value: string): string {
