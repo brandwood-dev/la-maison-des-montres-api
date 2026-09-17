@@ -96,6 +96,17 @@ export class CreateOrderDto {
 
   @IsIn(['cod'])
   paymentMethod!: 'cod';
+
+  /** First-party Meta identifiers forwarded by the storefront checkout. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fbp?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  fbc?: string;
 }
 
 export class UpdateOrderStatusDto {

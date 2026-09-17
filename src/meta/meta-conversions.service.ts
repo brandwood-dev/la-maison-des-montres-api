@@ -33,6 +33,11 @@ type MetaResponse = {
   error?: { message?: string; code?: number };
 };
 
+export type MetaPurchaseAttribution = {
+  fbp?: string;
+  fbc?: string;
+};
+
 @Injectable()
 export class MetaConversionsService {
   private readonly logger = new Logger(MetaConversionsService.name);
@@ -44,7 +49,10 @@ export class MetaConversionsService {
    * The order reference is reused as event_id so the browser Purchase event
    * and this server event are deduplicated by Meta.
    */
-  async sendPurchase(order: PublicOrderResponse): Promise<void> {
+  async sendPurchase(
+    order: PublicOrderResponse,
+    attribution: MetaPurchaseAttribution = {},
+  ): Promise<void> {
     const email = order.shipping.email ?? undefined;
     const phone = order.shipping.phone;
     const event: MetaEvent = {
@@ -53,7 +61,12 @@ export class MetaConversionsService {
       event_id: order.reference,
       action_source: 'website',
       event_source_url: this.siteUrl('/commande/confirmation'),
-      user_data: this.userData({ email, phone }),
+      user_data: this.userData({
+        email,
+        phone,
+        fbp: attribution.fbp,
+        fbc: attribution.fbc,
+      }),
       custom_data: {
         currency: order.currency,
         value: order.totals.totalMillimes / 1_000,

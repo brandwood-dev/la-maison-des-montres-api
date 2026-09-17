@@ -187,7 +187,7 @@ export class OrdersService {
       // interrupted; Meta deduplicates the retry by order reference.
       // Analytics is fail-open and must not add Meta network latency to a
       // checkout response. The service itself handles errors and timeouts.
-      void this.meta.sendPurchase(response);
+      void this.meta.sendPurchase(response, { fbp: input.fbp, fbc: input.fbc });
       return response;
     }
 
@@ -307,7 +307,7 @@ export class OrdersService {
       await this.email.notifyNewOrder(response, recipients);
       // Analytics is fail-open and must not add Meta network latency to a
       // checkout response. The service itself handles errors and timeouts.
-      void this.meta.sendPurchase(response);
+      void this.meta.sendPurchase(response, { fbp: input.fbp, fbc: input.fbc });
       return response;
     } catch (error) {
       // A concurrent retry may win the idempotency race. Return its order
@@ -317,7 +317,14 @@ export class OrdersService {
           database,
           input.idempotencyKey,
         );
-        if (duplicate) return this.toResponse(duplicate);
+        if (duplicate) {
+          const response = this.toResponse(duplicate);
+          void this.meta.sendPurchase(response, {
+            fbp: input.fbp,
+            fbc: input.fbc,
+          });
+          return response;
+        }
       }
       throw error;
     }

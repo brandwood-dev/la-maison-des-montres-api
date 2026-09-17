@@ -105,6 +105,27 @@ describe('MetaConversionsService', () => {
     expect(payload.data[0].user_data.ph[0]).toHaveLength(64);
   });
 
+  it('includes first-party browser identifiers on server Purchase events', async () => {
+    const service = new MetaConversionsService(
+      new ConfigService({ META_CONVERSIONS_API_ACCESS_TOKEN: 'a'.repeat(40) }),
+    );
+
+    await service.sendPurchase(order, {
+      fbp: 'fb.1.123.456',
+      fbc: 'fb.1.123.click-id',
+    });
+
+    const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    const payload = JSON.parse(String(init.body)) as {
+      data: Array<{ user_data: Record<string, string | string[]> }>;
+    };
+    expect(payload.data[0].user_data.fbp).toBe('fb.1.123.456');
+    expect(payload.data[0].user_data.fbc).toBe('fb.1.123.click-id');
+  });
+
   it('relays browser event identifiers and first-party Meta cookies', async () => {
     const service = new MetaConversionsService(
       new ConfigService({ META_CONVERSIONS_API_ACCESS_TOKEN: 'a'.repeat(40) }),
