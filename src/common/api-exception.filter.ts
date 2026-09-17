@@ -125,15 +125,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const value = current as {
         code?: unknown;
         constraint?: unknown;
+        constraint_name?: unknown;
         cause?: unknown;
         original?: unknown;
       };
       if (typeof value.code === 'string' && /^23\d{3}$/.test(value.code)) {
+        const constraint =
+          typeof value.constraint === 'string'
+            ? value.constraint
+            : typeof value.constraint_name === 'string'
+              ? value.constraint_name
+              : undefined;
         return {
           code: value.code,
-          ...(typeof value.constraint === 'string'
-            ? { constraint: value.constraint }
-            : {}),
+          ...(constraint ? { constraint } : {}),
         };
       }
       current = value.cause ?? value.original;

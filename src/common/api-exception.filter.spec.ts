@@ -29,7 +29,7 @@ describe('ApiExceptionFilter', () => {
     new ApiExceptionFilter().catch(
       {
         name: 'DatabaseErrorWrapper',
-        cause: { code: '23505', constraint: 'brands_name_unique' },
+        cause: { code: '23505', constraint_name: 'brands_name_unique' },
       },
       host(result),
     );
