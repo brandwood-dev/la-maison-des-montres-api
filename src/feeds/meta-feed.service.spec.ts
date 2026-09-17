@@ -80,6 +80,7 @@ describe('MetaFeedService', () => {
     expect(csv).toContain('out of stock');
     expect(csv).toContain('129.900 TND');
     expect(csv).toContain('149.900 TND');
+    expect(csv).toContain('PROMO');
     expect(csv).toContain(
       'https://lamaisondesmontres.com/montres/chrono-edition-or',
     );

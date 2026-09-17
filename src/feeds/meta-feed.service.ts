@@ -23,6 +23,7 @@ const FEED_HEADERS = [
   'google_product_category',
   'sale_price',
   'sale_price_effective_date',
+  'custom_label_0',
   'item_group_id',
 ] as const;
 
@@ -125,6 +126,11 @@ export class MetaFeedService {
               ? `${promotionStart.toISOString()}/${product.promotionEndsAt!.toISOString()}`
               : '',
           );
+        case 'custom_label_0':
+          // Meta uses this optional catalog label for dynamic badges/sets.
+          // Keep it empty outside an actually active promotion so scheduled
+          // or expired campaigns are never presented as a sale.
+          return this.csv(promotionActive ? 'PROMO' : '');
         case 'item_group_id':
           return this.csv('');
       }
