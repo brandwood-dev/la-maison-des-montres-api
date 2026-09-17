@@ -44,7 +44,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
         : undefined;
     const rawMessage = exception instanceof Error ? exception.message : '';
     const message = rawMessage.toLowerCase();
-    const category = /password|authentication|invalid authorization/.test(message)
+    const category = /password|authentication|invalid authorization/.test(
+      message,
+    )
       ? 'database_authentication'
       : /timeout|timed out|connect|socket|econn|enotfound/.test(message)
         ? 'database_connection'
@@ -52,7 +54,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
           ? 'database_schema'
           : /constraint|foreign key|duplicate|violates/.test(message)
             ? 'database_constraint'
-            : 'unknown'
+            : 'unknown';
     // Keep production diagnostics useful without logging SQL, connection
     // strings, request payloads, or any other potentially sensitive detail.
     console.error(
@@ -75,14 +77,16 @@ export class ApiExceptionFilter implements ExceptionFilter {
   private databaseError(
     exception: unknown,
   ): { status: HttpStatus; body: ApiErrorBody } | null {
-    if (!exception || typeof exception !== 'object' || !('code' in exception)) {
-      return null;
-    }
-    const code = String(exception.code);
+    const details = this.databaseErrorDetails(exception);
+    if (!details) return null;
+    const { code, constraint } = details;
     if (code === '23505') {
       return {
         status: HttpStatus.CONFLICT,
-        body: { code: 'RESOURCE_CONFLICT', message: 'Resource already exists' },
+        body: {
+          code: 'RESOURCE_CONFLICT',
+          message: this.conflictMessage(constraint),
+        },
       };
     }
     if (code === '23503') {
@@ -104,6 +108,60 @@ export class ApiExceptionFilter implements ExceptionFilter {
       };
     }
     return null;
+  }
+
+  /**
+   * postgres-js normally exposes the SQLSTATE on the thrown error itself, but
+   * adapters and transaction wrappers may put it on `cause` (or `original`
+   * error). Walk only a short, known chain so database failures never fall
+   * through to a misleading 500 response.
+   */
+  private databaseErrorDetails(
+    exception: unknown,
+  ): { code: string; constraint?: string } | null {
+    let current: unknown = exception;
+    for (let depth = 0; depth < 4; depth += 1) {
+      if (!current || typeof current !== 'object') return null;
+      const value = current as {
+        code?: unknown;
+        constraint?: unknown;
+        cause?: unknown;
+        original?: unknown;
+      };
+      if (typeof value.code === 'string' && /^23\d{3}$/.test(value.code)) {
+        return {
+          code: value.code,
+          ...(typeof value.constraint === 'string'
+            ? { constraint: value.constraint }
+            : {}),
+        };
+      }
+      current = value.cause ?? value.original;
+    }
+    return null;
+  }
+
+  private conflictMessage(constraint?: string): string {
+    switch (constraint) {
+      case 'brands_name_unique':
+        return 'Une marque avec ce nom existe déjà.';
+      case 'brands_slug_unique':
+        return 'Une marque avec ce slug existe déjà.';
+      case 'categories_slug_unique':
+        return 'Une catégorie avec ce slug existe déjà.';
+      case 'attributes_slug_unique':
+        return 'Un attribut avec cet identifiant existe déjà.';
+      case 'attribute_values_attribute_slug_unique':
+        return 'Cette valeur existe déjà pour cet attribut.';
+      case 'promo_banner_messages_message_unique':
+        return 'Ce message promotionnel existe déjà.';
+      case 'products_reference_unique':
+        return 'Cette référence produit existe déjà.';
+      case 'products_seo_slug_unique':
+        return 'Ce slug produit existe déjà.';
+      default:
+        return 'Cette ressource existe déjà.';
+    }
   }
 
   private toBody(raw: unknown, status: number): ApiErrorBody {
