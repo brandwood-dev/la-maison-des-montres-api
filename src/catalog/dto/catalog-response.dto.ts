@@ -155,6 +155,36 @@ export class ProductImageResponseDto {
   @ApiPropertyOptional({ description: 'Tailles responsives recommandées' })
   sizes?: string;
 
+  @ApiPropertyOptional({
+    format: 'uri',
+    description: 'URL 4/5 recadrée pour les cartes catalogue',
+  })
+  cardUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Variantes 4/5 responsive pour les cartes catalogue',
+  })
+  cardSrcSet?: string;
+
+  @ApiPropertyOptional({
+    description: 'Tailles responsives des cartes catalogue',
+  })
+  cardSizes?: string;
+
+  @ApiPropertyOptional({
+    format: 'uri',
+    description: 'URL carrée recadrée pour les miniatures',
+  })
+  thumbnailUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Variantes carrées responsive pour les miniatures',
+  })
+  thumbnailSrcSet?: string;
+
+  @ApiPropertyOptional({ description: 'Taille responsive des miniatures' })
+  thumbnailSizes?: string;
+
   @ApiProperty({ minimum: 0 })
   order!: number;
 }

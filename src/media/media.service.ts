@@ -40,6 +40,12 @@ export type ProductMediaUploadTicket = {
   optimizedUrl?: string;
   srcSet?: string;
   sizes?: string;
+  cardUrl?: string;
+  cardSrcSet?: string;
+  cardSizes?: string;
+  thumbnailUrl?: string;
+  thumbnailSrcSet?: string;
+  thumbnailSizes?: string;
 };
 
 @Injectable()
